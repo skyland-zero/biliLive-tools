@@ -140,6 +140,8 @@ export class BCutASRAdapter implements ASRProvider {
       end: utterance.end_time / 1000,
       text: utterance.transcript,
       speaker: undefined, // B接口 ASR 不支持说话人分离
+      // 0-1 之间，表示该段是音乐/唱歌的可能性
+      music: utterance.music,
     }));
 
     return {

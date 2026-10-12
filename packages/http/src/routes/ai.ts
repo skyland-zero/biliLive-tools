@@ -100,6 +100,14 @@ router.post("/chapter", async (ctx) => {
     /** 单次 LLM 调用的文本上限（字符） */
     maxChunkChars?: number;
     timelineWithHighlight?: boolean;
+    /** 是否检测唱歌片段 */
+    detectSinging?: boolean;
+    /** 是否让 LLM 推测歌名 */
+    recognizeMusicName?: boolean;
+    /** 时间轴条目上限 */
+    timelineMaxItems?: number;
+    /** 时间轴字数上限 */
+    timelineMaxChars?: number;
     asrModelId?: string;
     llmModelId?: string;
     prompt?: string;
@@ -121,6 +129,10 @@ router.post("/chapter", async (ctx) => {
     maxTitleLength: data.maxTitleLength,
     maxChunkChars: data.maxChunkChars,
     timelineWithHighlight: data.timelineWithHighlight,
+    detectSinging: data.detectSinging,
+    recognizeMusicName: data.recognizeMusicName,
+    timelineMaxItems: data.timelineMaxItems,
+    timelineMaxChars: data.timelineMaxChars,
     asrModelId: data.asrModelId,
     llmModelId: data.llmModelId,
     prompt: data.prompt,

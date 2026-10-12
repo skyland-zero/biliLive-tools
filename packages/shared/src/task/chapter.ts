@@ -67,6 +67,8 @@ export class ChapterTask extends AbstractTask {
   private stringifyResult(result: ChapterResult) {
     return {
       chapters: result.chapters,
+      events: result.events,
+      singing: result.singing,
       chapterText: result.chapterText,
       timelineText: result.timelineText,
       duration: result.duration,

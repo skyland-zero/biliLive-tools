@@ -70,8 +70,50 @@
             <n-form-item label="标题字数上限">
               <n-input-number v-model:value="options.maxTitleLength" :min="2" :max="40" />
             </n-form-item>
+            <n-form-item>
+              <template #label>
+                <Tip
+                  text="时间轴条数上限"
+                  tip="置顶评论时间轴的主干章节必选，弹幕高能与唱歌条目按重要性补入，最多这么多条"
+                ></Tip>
+              </template>
+              <n-input-number v-model:value="options.timelineMaxItems" :min="0" :max="200" />
+            </n-form-item>
+            <n-form-item>
+              <template #label>
+                <Tip text="时间轴字数上限" tip="B站评论有字数限制，默认 900 字"></Tip>
+              </template>
+              <n-input-number v-model:value="options.timelineMaxChars" :min="0" :max="2000" />
+            </n-form-item>
             <n-form-item label="时间轴含高能点">
               <n-switch v-model:value="options.timelineWithHighlight" />
+            </n-form-item>
+          </n-form>
+        </div>
+
+        <div class="setting-section">
+          <div class="setting-title">唱歌识别</div>
+          <n-form label-placement="left" :label-width="120" size="small">
+            <n-form-item>
+              <template #label>
+                <Tip
+                  text="检测唱歌片段"
+                  tip="综合音频特征、语音识别结果、弹幕来定位唱歌片段，会明显增加分析耗时"
+                ></Tip>
+              </template>
+              <n-switch v-model:value="options.detectSinging" />
+            </n-form-item>
+            <n-form-item>
+              <template #label>
+                <Tip
+                  text="推测歌名"
+                  tip="在复核片段时让大模型顺便猜歌名，猜不准可能出错，且每次会多一次调用"
+                ></Tip>
+              </template>
+              <n-switch
+                v-model:value="options.recognizeMusicName"
+                :disabled="!options.detectSinging"
+              />
             </n-form-item>
           </n-form>
         </div>
@@ -126,7 +168,7 @@
         <n-text depth="3">
           视频时长 {{ durationText }} · 共 {{ chapters.length }} 个章节<span v-if="danmakuSummary">
             · 弹幕 {{ danmakuSummary.total }} 条</span
-          >
+          ><span v-if="singing.length"> · 唱歌 {{ singing.length }} 段</span>
         </n-text>
       </template>
 
@@ -143,6 +185,22 @@
           <div class="result-actions">
             <n-button size="small" @click="copyText(timelineText, '时间轴')">复制时间轴</n-button>
             <n-text depth="3">发布后置顶评论即可，时间戳可直接跳转</n-text>
+          </div>
+        </n-tab-pane>
+        <n-tab-pane v-if="singing.length" name="singing" tab="唱歌片段">
+          <div class="singing-list">
+            <div v-for="(segment, index) in singing" :key="index" class="singing-item">
+              <n-tag size="small" type="warning">
+                {{ formatSeconds(segment.start) }} - {{ formatSeconds(segment.end) }}
+              </n-tag>
+              <n-text>{{ segment.name ? `《${segment.name}》` : "（未识别歌名）" }}</n-text>
+              <n-text depth="3">置信度 {{ (segment.confidence * 100).toFixed(0) }}%</n-text>
+              <n-text depth="3">{{ sourceLabel(segment.sources) }}</n-text>
+            </div>
+          </div>
+          <div class="result-actions">
+            <n-button size="small" @click="copyText(singingText, '唱歌片段')">复制列表</n-button>
+            <n-text depth="3">可复制到切片工具中手动划定位置</n-text>
           </div>
         </n-tab-pane>
         <n-tab-pane name="json" tab="结构化数据">
@@ -175,10 +233,20 @@ interface ChapterItem {
   end: number;
   title: string;
   highlight: boolean;
+  musicName?: string;
+}
+
+interface SingingSegment {
+  start: number;
+  end: number;
+  confidence: number;
+  name?: string;
+  sources: string[];
 }
 
 interface ChapterExtra {
   chapters: ChapterItem[];
+  singing?: SingingSegment[];
   chapterText: string;
   timelineText: string;
   duration: number;
@@ -205,6 +273,10 @@ const options = useStorage("chapter-options", {
   minChapterInterval: 60,
   maxTitleLength: 16,
   timelineWithHighlight: true,
+  detectSinging: true,
+  recognizeMusicName: false,
+  timelineMaxItems: 60,
+  timelineMaxChars: 900,
 });
 
 const activeTab = ref<"chapter" | "timeline" | "json">("chapter");
@@ -214,6 +286,7 @@ const errorMessage = ref("");
 const progress = ref(0);
 const progressMessage = ref("");
 const chapters = ref<ChapterItem[]>([]);
+const singing = ref<SingingSegment[]>([]);
 const chapterText = ref("");
 const timelineText = ref("");
 const jsonText = ref("");
@@ -264,6 +337,32 @@ const durationText = computed(() => {
   const pad = (value: number) => String(value).padStart(2, "0");
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 });
+const singingText = computed(() =>
+  singing.value
+    .map((segment) => {
+      const name = segment.name ? `《${segment.name}》` : "";
+      return `${formatSeconds(segment.start)} - ${formatSeconds(segment.end)} ${name}`.trim();
+    })
+    .join("\n"),
+);
+
+const formatSeconds = (seconds: number) => {
+  const total = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  audio: "音频特征",
+  asr: "语音识别",
+  danmaku: "弹幕",
+  llm: "模型复核",
+};
+const sourceLabel = (sources: string[]) =>
+  sources.map((source) => SOURCE_LABELS[source] ?? source).join(" + ");
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -280,13 +379,22 @@ const startPolling = () => {
         const extra = data.extra as unknown as ChapterExtra | undefined;
         if (extra?.chapters) {
           chapters.value = extra.chapters;
+          singing.value = extra.singing ?? [];
           chapterText.value = extra.chapterText;
           timelineText.value = extra.timelineText;
-          jsonText.value = JSON.stringify(extra.chapters, null, 2);
+          jsonText.value = JSON.stringify(
+            { chapters: extra.chapters, singing: extra.singing ?? [] },
+            null,
+            2,
+          );
           danmakuSummary.value = extra.danmaku ?? null;
           duration.value = extra.duration ?? 0;
           activeTab.value = "chapter";
-          notice.success({ title: `章节生成完成，共 ${extra.chapters.length} 个章节` });
+          notice.success({
+            title: `章节生成完成，共 ${extra.chapters.length} 个章节${
+              extra.singing?.length ? `、${extra.singing.length} 个唱歌片段` : ""
+            }`,
+          });
         }
         stopPolling();
       } else if (data.status === "error") {
@@ -364,6 +472,10 @@ const generate = async () => {
       minChapterInterval: options.value.minChapterInterval,
       maxTitleLength: options.value.maxTitleLength,
       timelineWithHighlight: options.value.timelineWithHighlight,
+      detectSinging: options.value.detectSinging,
+      recognizeMusicName: options.value.recognizeMusicName,
+      timelineMaxItems: options.value.timelineMaxItems,
+      timelineMaxChars: options.value.timelineMaxChars,
       asrModelId: options.value.asrModelId || undefined,
       llmModelId: options.value.llmModelId || undefined,
     });
@@ -408,6 +520,20 @@ const openQueue = () => router.push({ name: "Queue" });
   .n-text {
     font-size: 12px;
   }
+}
+
+.singing-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.singing-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-secondary);
+  font-size: 13px;
 }
 
 .path-control + .path-control,

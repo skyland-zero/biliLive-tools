@@ -57,6 +57,11 @@ export interface StandardASRSegment {
    * 说话人ID（可选，启用说话人分离时）
    */
   speaker?: string;
+
+  /**
+   * 该段是音乐/唱歌的可能性 0-1（目前仅必剪 ASR 提供）
+   */
+  music?: number;
 }
 
 /**

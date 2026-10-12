@@ -70,13 +70,15 @@ See [the reference guide](https://docs.irenmu.com/api/video.md) for details.
 
 See [the reference guide](https://docs.irenmu.com/api/ai.md) for details.
 
-输入完整的录像文件和对应的弹幕 XML 文件，生成 B站章节目录和置顶评论时间轴。
+输入完整的录像文件和对应的弹幕 XML 文件，生成 B站章节目录、置顶评论时间轴与唱歌片段列表。
 
 - 创建任务(`POST /ai/chapter`)，参数为 `videoFile`、`danmuFile`，返回 `taskId`
 - 轮询(`GET /task/:id`)，任务类型为 `chapter`，完成后结果在 `extra` 中：
   - `extra.chapterText`：B站章节目录文本
-  - `extra.timelineText`：置顶评论文本
+  - `extra.timelineText`：置顶评论文本（含话题、🔥弹幕高能、🎤唱歌）
   - `extra.chapters`：结构化章节数据
+  - `extra.singing`：唱歌片段（起止时间、置信度、歌名、判定依据）
+  - `extra.events`：统一事件流
 
 注意：该功能**只生成文本**，不会写入 B 站，不要把生成结果用于投稿接口去设置章节。
 
@@ -126,7 +128,7 @@ See [the reference guide](https://docs.irenmu.com/api/config.md) for details.
 
 ### 生成章节
 
-用户给出录像文件和弹幕文件路径时，调用 `POST /ai/chapter` 创建任务，然后每隔 10 秒轮询一次 `GET /task/:id`，直到 `status` 为 `completed`，将 `extra.chapterText` 和 `extra.timelineText` 返回给用户。长视频的语音识别可能耗时很久，不要频繁轮询。
+用户给出录像文件和弹幕文件路径时，调用 `POST /ai/chapter` 创建任务，然后每隔 10 秒轮询一次 `GET /task/:id`，直到 `status` 为 `completed`，将 `extra.chapterText`、`extra.timelineText` 和 `extra.singing` 返回给用户。长视频的语音识别与唱歌检测可能耗时很久，不要频繁轮询。
 
 ### 字幕压制
 

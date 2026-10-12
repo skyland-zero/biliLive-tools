@@ -272,6 +272,41 @@
                 <n-form-item label="时间轴含高能点">
                   <n-switch v-model:value="config.ai.chapterRecognize.timelineWithHighlight" />
                 </n-form-item>
+                <n-form-item label="时间轴条数上限">
+                  <n-input-number
+                    v-model:value="config.ai.chapterRecognize.timelineMaxItems"
+                    :min="0"
+                    :max="200"
+                  />
+                </n-form-item>
+                <n-form-item label="时间轴字数上限">
+                  <n-input-number
+                    v-model:value="config.ai.chapterRecognize.timelineMaxChars"
+                    :min="0"
+                    :max="2000"
+                  />
+                </n-form-item>
+                <n-form-item>
+                  <template #label>
+                    <Tip
+                      text="检测唱歌片段"
+                      tip="综合音频特征、语音识别结果与弹幕定位唱歌片段，会明显增加分析耗时"
+                    ></Tip>
+                  </template>
+                  <n-switch v-model:value="config.ai.chapterRecognize.detectSinging" />
+                </n-form-item>
+                <n-form-item>
+                  <template #label>
+                    <Tip
+                      text="推测歌名"
+                      tip="复核片段时让大模型顺便猜歌名，可能不准，且会增加调用次数"
+                    ></Tip>
+                  </template>
+                  <n-switch
+                    v-model:value="config.ai.chapterRecognize.recognizeMusicName"
+                    :disabled="!config.ai.chapterRecognize.detectSinging"
+                  />
+                </n-form-item>
               </n-form>
             </n-collapse-item>
           </n-collapse>

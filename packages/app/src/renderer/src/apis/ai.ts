@@ -59,6 +59,11 @@ const chapterGenerate = async (params: {
   minChapterInterval?: number;
   maxTitleLength?: number;
   timelineWithHighlight?: boolean;
+  detectSinging?: boolean;
+  recognizeMusicName?: boolean;
+  timelineMaxItems?: number;
+  timelineMaxChars?: number;
+  maxChunkChars?: number;
   asrModelId?: string;
   llmModelId?: string;
   prompt?: string;

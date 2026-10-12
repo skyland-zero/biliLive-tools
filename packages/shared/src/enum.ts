@@ -384,6 +384,10 @@ export const APP_DEFAULT_CONFIG: AppConfig = {
       minChapterInterval: 60,
       maxTitleLength: 16,
       timelineWithHighlight: true,
+      detectSinging: true,
+      recognizeMusicName: false,
+      timelineMaxItems: 60,
+      timelineMaxChars: 900,
     },
   },
   biliUpload: {

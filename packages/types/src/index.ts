@@ -858,6 +858,14 @@ export interface AppConfig {
       maxTitleLength: number;
       /** 置顶评论时间轴是否包含弹幕高能点 */
       timelineWithHighlight: boolean;
+      /** 是否检测唱歌片段 */
+      detectSinging: boolean;
+      /** 是否让 LLM 推测歌名（关闭时只用歌名不确定的唱歌标记） */
+      recognizeMusicName: boolean;
+      /** 置顶评论时间轴条目上限，0 表示不限 */
+      timelineMaxItems: number;
+      /** 置顶评论时间轴字数上限，0 表示不限（B站评论上限约 1000 字） */
+      timelineMaxChars: number;
     };
   };
   /** 最大任务数 */

@@ -142,7 +142,8 @@ export const CHUNK_SYSTEM_PROMPT = `
 2. 一段话题通常持续 3~15 分钟，不要切得过碎，也不要把明显不同的话题合并在一起。
 3. 不要因为文本从一个片段的开头开始就新增一个话题，除非它确实是新话题的起点。
 4. 每段输出一句简短描述（不超过 25 字），概括这段内容，尽量使用原文里的说法。
-5. 输出 JSON，格式：{"topics":[{"time":"hh:mm:ss","topic":"描述"}]}，除 JSON 外不要输出任何内容。
+5. 如果给出了唱歌片段，唱歌的起点通常是一个新话题的起点，请单独分段。
+6. 输出 JSON，格式：{"topics":[{"time":"hh:mm:ss","topic":"描述"}]}，除 JSON 外不要输出任何内容。
 `.trim();
 
 /** 汇总章节的补充要求 */
@@ -151,6 +152,8 @@ export function buildMergeRequirement(options: {
   maxChapters: number;
   minChapterInterval: number;
   maxTitleLength: number;
+  /** 是否检测到唱歌片段 */
+  hasSinging?: boolean;
 }) {
   return [
     `视频总时长：${formatTimestamp(options.duration)}`,
@@ -160,6 +163,11 @@ export function buildMergeRequirement(options: {
     `3. 相邻章节的时间间隔不小于 ${options.minChapterInterval} 秒。`,
     `4. 章节标题不超过 ${options.maxTitleLength} 个字，不要以标点结尾，不要带序号。`,
     "5. 分界点优先落在大弹幕峰值、重要付费互动事件或明显的话题切换处。",
-    '6. 输出 JSON，格式：{"chapters":[{"time":"hh:mm:ss","title":"标题"}]}，除 JSON 外不要输出任何内容。',
-  ].join("\n");
+    options.hasSinging
+      ? "6. 唱歌片段的起点必须成为一个章节边界，该章节标题用「唱歌：歌名」开头，判断不出歌名就只写「唱歌」，不要编造歌名。"
+      : "",
+    `${options.hasSinging ? "7" : "6"}. 输出 JSON，格式：{\"chapters\":[{\"time\":\"hh:mm:ss\",\"title\":\"标题\"}]}，除 JSON 外不要输出任何内容。`,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

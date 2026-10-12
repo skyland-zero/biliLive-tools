@@ -9,6 +9,8 @@ import { getModel } from "../musicDetector/utils.js";
 import logger from "../utils/log.js";
 import { getTempPath, calculateFileQuickHash } from "../utils/index.js";
 import { analyzeDanmaku, formatDanmakuForPrompt, formatTimestamp } from "./danmaku.js";
+import { detectSingingSegments, formatSingingForPrompt } from "./singing.js";
+import { buildTimelineEvents, renderChapterText, renderTimelineText } from "./timeline.js";
 import {
   buildMergeRequirement,
   buildTranscriptLines,
@@ -22,9 +24,13 @@ import {
 import type { StandardASRResult } from "../ai/asr/types.js";
 import type { DanmakuAnalysis } from "./danmaku.js";
 import type { TranscriptLine } from "./prompt.js";
+import type { SingingSegment } from "./singing.js";
+import type { TimelineEvent } from "./timeline.js";
 
 export * from "./danmaku.js";
 export * from "./prompt.js";
+export * from "./singing.js";
+export * from "./timeline.js";
 
 export interface ChapterProgress {
   stage: string;
@@ -41,6 +47,8 @@ export interface ChapterItem {
   title: string;
   /** 是否为弹幕高能章节 */
   highlight: boolean;
+  /** 该章节包含唱歌片段时的歌名 */
+  musicName?: string;
 }
 
 export interface GenerateChaptersOptions {
@@ -56,6 +64,14 @@ export interface GenerateChaptersOptions {
   maxTitleLength?: number;
   /** 置顶评论时间轴是否包含弹幕高能点 */
   timelineWithHighlight?: boolean;
+  /** 是否检测唱歌片段 */
+  detectSinging?: boolean;
+  /** 是否让 LLM 推测歌名 */
+  recognizeMusicName?: boolean;
+  /** 时间轴条目上限 */
+  timelineMaxItems?: number;
+  /** 时间轴字数上限 */
+  timelineMaxChars?: number;
   /** 覆盖配置中的 ASR 模型 */
   asrModelId?: string;
   /** 覆盖配置中的 LLM 模型 */
@@ -71,7 +87,12 @@ export interface GenerateChaptersOptions {
 }
 
 export interface ChapterResult {
+  /** 主干话题章节 */
   chapters: ChapterItem[];
+  /** 统一时间轴事件流：话题 / 弹幕高能 / 唱歌 */
+  events: TimelineEvent[];
+  /** 检测到的唱歌片段 */
+  singing: SingingSegment[];
   /** B站章节文本 */
   chapterText: string;
   /** 置顶评论时间轴文本 */
@@ -94,6 +115,14 @@ interface ChapterConfig {
   minChapterInterval: number;
   maxTitleLength: number;
   timelineWithHighlight: boolean;
+  /** 是否检测唱歌片段 */
+  detectSinging: boolean;
+  /** 是否让 LLM 推测歌名 */
+  recognizeMusicName: boolean;
+  /** 时间轴条目上限，0 表示不限 */
+  timelineMaxItems: number;
+  /** 时间轴字数上限，0 表示不限 */
+  timelineMaxChars: number;
 }
 
 const DEFAULT_CHAPTER_PROMPT = `
@@ -158,6 +187,10 @@ function getChapterConfig(overrides: GenerateChaptersOptions): ChapterConfig {
     maxTitleLength: Math.max(2, overrides.maxTitleLength ?? chapterConfig?.maxTitleLength ?? 16),
     timelineWithHighlight:
       overrides.timelineWithHighlight ?? chapterConfig?.timelineWithHighlight ?? true,
+    detectSinging: overrides.detectSinging ?? chapterConfig?.detectSinging ?? true,
+    recognizeMusicName: overrides.recognizeMusicName ?? chapterConfig?.recognizeMusicName ?? false,
+    timelineMaxItems: overrides.timelineMaxItems ?? chapterConfig?.timelineMaxItems ?? 60,
+    timelineMaxChars: overrides.timelineMaxChars ?? chapterConfig?.timelineMaxChars ?? 900,
   };
 }
 
@@ -281,6 +314,20 @@ function cleanTitle(title: string, maxTitleLength: number) {
   return cleaned.slice(0, maxTitleLength) || "未命名章节";
 }
 
+/** 在候选时间点中取最近的一个 */
+function snapToCandidates(time: number, candidates: number[], tolerance: number) {
+  let nearest = time;
+  let nearestDistance = tolerance;
+  for (const candidate of candidates) {
+    const distance = Math.abs(candidate - time);
+    if (distance < nearestDistance) {
+      nearest = candidate;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
 /** 章节后处理：对齐时间、限制数量与标题长度 */
 function postProcessChapters(
   rawChapters: { time: string | number; title: string }[],
@@ -291,10 +338,13 @@ function postProcessChapters(
     minChapterInterval: number;
     maxTitleLength: number;
     danmaku: DanmakuAnalysis | null;
+    singing?: SingingSegment[];
   },
 ): ChapterItem[] {
   const { lines, duration, maxChapters, minChapterInterval, maxTitleLength, danmaku } = context;
+  const singing = context.singing ?? [];
   const lineStarts = lines.map((line) => line.start);
+  const singingStarts = singing.map((segment) => segment.start);
 
   const chapters = rawChapters
     .map((item) => ({
@@ -303,10 +353,14 @@ function postProcessChapters(
     }))
     .filter((item) => item.start >= 0)
     .sort((a, b) => a.start - b.start)
-    .map((item) => ({
-      ...item,
-      start: snapToTranscript(item.start, lineStarts, duration),
-    }));
+    .map((item) => {
+      const start = snapToTranscript(item.start, lineStarts, duration);
+      // 唱歌起点是很硬的边界信号，优先吸附
+      return {
+        ...item,
+        start: Math.min(snapToCandidates(start, singingStarts, 20), duration),
+      };
+    });
 
   // 首章对齐到 00:00
   if (chapters.length > 0) {
@@ -366,58 +420,10 @@ function postProcessChapters(
   return withTime.map((chapter) => ({
     ...chapter,
     highlight: isHighlight(chapter.start, chapter.end),
+    musicName: singing.find(
+      (segment) => chapter.start >= segment.start - 30 && chapter.start < segment.end + 5,
+    )?.name,
   }));
-}
-
-/** 秒 -> 视频内使用的时间文本，超过 1 小时用 hh:mm:ss */
-function formatTime(seconds: number, withHours: boolean) {
-  if (withHours) return formatTimestamp(seconds);
-  const total = Math.max(0, Math.floor(seconds));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-/** 生成 B站章节文本 */
-export function formatChapterText(chapters: ChapterItem[], duration: number) {
-  const withHours = duration >= 3600;
-  return chapters
-    .map((chapter) => `${formatTime(chapter.start, withHours)} ${chapter.title}`)
-    .join("\n");
-}
-
-/** 生成置顶评论时间轴文本 */
-export function formatTimelineText(
-  chapters: ChapterItem[],
-  options: { duration: number; danmaku?: DanmakuAnalysis | null; withHighlight?: boolean },
-) {
-  const withHours = options.duration >= 3600;
-  const entries: { time: number; text: string }[] = chapters.map((chapter) => ({
-    time: chapter.start,
-    text: `${formatTime(chapter.start, withHours)} ${chapter.title}${chapter.highlight ? " 🔥" : ""}`,
-  }));
-
-  if (options.withHighlight && options.danmaku) {
-    const maxScore = Math.max(0, ...options.danmaku.spots.map((spot) => spot.score));
-    const usedTimes = chapters.map((chapter) => chapter.start);
-    let added = 0;
-    for (const spot of options.danmaku.spots) {
-      if (added >= 20) break;
-      if (maxScore <= 0 || spot.score < maxScore * 0.5) continue;
-      // 与章节时间过近的高能点不重复展示
-      if (usedTimes.some((time) => Math.abs(time - spot.time) < 60)) continue;
-      const title = spot.keywords.length > 0 ? spot.keywords.slice(0, 3).join("、") : "高能时刻";
-      entries.push({
-        time: spot.time,
-        text: `${formatTime(spot.time, withHours)} 🔥 ${title}（弹幕${spot.count}条）`,
-      });
-      usedTimes.push(spot.time);
-      added++;
-    }
-  }
-
-  const lines = entries.sort((a, b) => a.time - b.time).map((entry) => entry.text);
-  return ["📌 时间轴", ...lines].join("\n");
 }
 
 /**
@@ -489,10 +495,55 @@ export async function generateChapters(options: GenerateChaptersOptions): Promis
   );
   progress("asr", 55, `语音识别完成，共 ${lines.length} 行文本`);
 
-  // 3. LLM 分段
+  // 3. 唱歌检测（音频特征 + ASR music 分数 + 弹幕 + LLM 复核）
   assertNotCanceled();
   const chatJson = createChatJson(config);
+  let singing: SingingSegment[] = [];
+  if (config.detectSinging) {
+    singing = await detectSingingSegments({
+      videoFile,
+      asrResult,
+      danmaku,
+      recognizeMusicName: config.recognizeMusicName,
+      onProgress: (data) =>
+        onProgress?.({
+          stage: "singing",
+          // 唱歌检测共占 1~2 个百分点
+          percentage: data.stage === "singing-llm" ? 58 : 56,
+          message: data.message,
+        }),
+      review: async (candidates) => {
+        const nameRule = config.recognizeMusicName
+          ? "如果能判断出歌名，在 name 字段给出歌名，猜不准就留空。"
+          : "只判断是否唱歌，不要猜歌名。";
+        const schema = config.recognizeMusicName
+          ? '{"segments":[{"index":0,"isSinging":true,"confidence":0.9,"name":"歌名或空"}]}'
+          : '{"segments":[{"index":0,"isSinging":true,"confidence":0.9}]}';
+        const userContent = [
+          "下面是直播录像中若干候选片段的转写文本，请判断每个片段是不是在唱歌（含清唱、跟唱）。",
+          "注意：说话时带背景音乐不算唱歌；只有实际在唱才算。",
+          nameRule,
+          `输出 JSON：${schema}，除 JSON 外不要输出任何内容。`,
+          ...candidates.map(
+            (candidate, index) =>
+              `片段 ${index}（${formatTimestamp(candidate.start)}-${formatTimestamp(candidate.end)}）：${candidate.text || "（无转写文本）"}`,
+          ),
+        ].join("\n\n");
+        const result = await chatJson<{
+          segments?: { index: number; isSinging: boolean; confidence?: number; name?: string }[];
+        }>("你是直播录像的内容审核员，负责判断片段是否为唱歌。", userContent);
+        return result.segments ?? [];
+      },
+    });
+    if (singing.length > 0) {
+      progress("singing", 58, `检测到 ${singing.length} 个唱歌片段`);
+    }
+  }
+
+  // 4. LLM 分段
+  assertNotCanceled();
   const danmakuText = danmaku ? formatDanmakuForPrompt(danmaku) : "";
+  const singingText = formatSingingForPrompt(singing);
   const chunks = chunkTranscriptLines(lines, { maxChars: config.maxChunkChars });
   let topics: CandidateTopic[] = [];
   const singlePass = chunks.length === 1;
@@ -523,6 +574,13 @@ export async function generateChapters(options: GenerateChaptersOptions): Promis
       const userContent = [
         `视频总时长：${formatTimestamp(duration)}`,
         danmakuText ? `本片段的弹幕高能点参考：\n${chunkDanmaku}` : "",
+        singingText
+          ? formatSingingForPrompt(
+              singing.filter(
+                (segment) => segment.end >= chunkStart - 60 && segment.start <= chunkEnd + 60,
+              ),
+            )
+          : "",
         `本片段的转写文本（时间为整个视频的时间）：\n${formatTranscriptLines(chunk)}`,
         "请划分本片段内的话题，输出 JSON。",
       ]
@@ -564,11 +622,13 @@ export async function generateChapters(options: GenerateChaptersOptions): Promis
           .map((topic) => `${formatTimestamp(topic.time)} ${topic.topic}`)
           .join("\n")}`,
     danmakuText ? `弹幕高能点：\n${danmakuText}` : "",
+    singingText,
     buildMergeRequirement({
       duration,
       maxChapters: config.maxChapters,
       minChapterInterval: config.minChapterInterval,
       maxTitleLength: config.maxTitleLength,
+      hasSinging: singing.length > 0,
     }),
   ]
     .filter(Boolean)
@@ -592,24 +652,38 @@ export async function generateChapters(options: GenerateChaptersOptions): Promis
     minChapterInterval: config.minChapterInterval,
     maxTitleLength: config.maxTitleLength,
     danmaku,
+    singing,
   });
   if (chapters.length === 0) {
     throw new Error("未能整理出有效章节，请调整提示词或更换模型后重试");
   }
 
+  // 统一事件流：章节主干 + 弹幕高能 + 唱歌片段
+  const events = buildTimelineEvents({ chapters, danmaku, singing });
+  const timelineEvents = config.timelineWithHighlight
+    ? events
+    : events.filter((event) => event.type === "topic");
+
   const result: ChapterResult = {
     chapters,
-    chapterText: formatChapterText(chapters, duration),
-    timelineText: formatTimelineText(chapters, {
+    events,
+    singing,
+    chapterText: renderChapterText(chapters, duration),
+    timelineText: renderTimelineText(timelineEvents, {
       duration,
-      danmaku,
-      withHighlight: config.timelineWithHighlight,
+      maxItems: config.timelineMaxItems,
+      maxChars: config.timelineMaxChars,
     }),
     duration,
     danmaku,
   };
 
-  logger.info("章节生成完成", { chapters: chapters.length, duration });
+  logger.info("章节生成完成", {
+    chapters: chapters.length,
+    events: events.length,
+    singing: singing.length,
+    duration,
+  });
   progress("done", 100, "章节生成完成");
   return result;
 }
