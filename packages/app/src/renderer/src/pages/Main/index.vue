@@ -108,7 +108,6 @@ import { RouterLink, useRoute, useRouter } from "vue-router";
 import {
   BuildOutline as BuildIcon,
   FolderOpenOutline as FolderIcon,
-  HomeOutline as HomeIcon,
   InformationCircleOutline as InfoIcon,
   GitPullRequestOutline as QueueIcon,
   SettingsOutline as SettingIcon,
@@ -135,8 +134,8 @@ const appConfig = useAppConfig();
 const { userInfo } = storeToRefs(useUserInfoStore());
 
 const route = useRoute();
-const activeKey = ref("Home");
-activeKey.value = route.name as string;
+const activeKey = ref("recorder");
+activeKey.value = (route.name as string) || "recorder";
 const collapsed = useStorage("collapsed", false);
 const expandedMenuKeys = useStorage<Array<string | number>>("menu-expanded-keys", [
   "videoProcessing",
@@ -205,11 +204,69 @@ function renderImg(src: string) {
 
 const router = useRouter();
 const footerMenuOptions = computed<MenuOption[]>(() => {
-  const menus: {
-    label: () => VNode;
-    key: string;
-    icon?: () => VNode;
-  }[] = [];
+  const menus: MenuOption[] = [
+    {
+      label: () =>
+        h(
+          RouterLink,
+          {
+            to: {
+              name: "User",
+            },
+          },
+          { default: () => "用户" },
+        ),
+      key: "User",
+      icon: renderImg(userInfo.value?.profile?.face || defaultUserAvatar),
+    },
+    {
+      label: () =>
+        h(
+          "a",
+          {
+            onClick: () => {
+              openSetting();
+            },
+          },
+          { default: () => "设置" },
+        ),
+      key: "setting",
+      icon: renderIcon(SettingIcon),
+    },
+  ];
+
+  if (isWeb.value) {
+    menus.push({
+      label: () =>
+        h(
+          "a",
+          {
+            onClick: () => {
+              logVisible.value = true;
+            },
+          },
+          { default: () => "日志" },
+        ),
+      key: "log",
+      icon: renderIcon(logSvg),
+    });
+  }
+
+  menus.push({
+    label: () =>
+      h(
+        RouterLink,
+        {
+          to: {
+            name: "About",
+          },
+        },
+        { default: () => "关于" },
+      ),
+    key: "About",
+    icon: renderIcon(InfoIcon),
+  });
+
   if (isWeb.value) {
     menus.push({
       label: () =>
@@ -221,65 +278,14 @@ const footerMenuOptions = computed<MenuOption[]>(() => {
               window.localStorage.setItem("key", "");
               router.push({ name: "Login" });
             },
-            // style: {
-            //   marginLeft: "25px",
-            // },
           },
           { default: () => "登出" },
         ),
       key: "logout",
       icon: renderIcon(LogOutOutline),
     });
-    menus.push({
-      label: () =>
-        h(
-          "a",
-          {
-            onClick: () => {
-              logVisible.value = true;
-            },
-            // style: {
-            //   marginLeft: "25px",
-            // },
-          },
-          { default: () => "日志" },
-        ),
-      key: "log",
-      icon: renderIcon(logSvg),
-    });
   }
-  menus.push(
-    ...[
-      {
-        label: () =>
-          h(
-            RouterLink,
-            {
-              to: {
-                name: "About",
-              },
-            },
-            { default: () => "关于" },
-          ),
-        key: "About",
-        icon: renderIcon(InfoIcon),
-      },
-      {
-        label: () =>
-          h(
-            "a",
-            {
-              onClick: () => {
-                openSetting();
-              },
-            },
-            { default: () => "设置" },
-          ),
-        key: "setting",
-        icon: renderIcon(SettingIcon),
-      },
-    ],
-  );
+
   return menus;
 });
 
@@ -340,6 +346,19 @@ const menuOptions = computed<MenuOption[]>(() => {
   ];
 
   const videoProcessingSubMenus = [
+    {
+      key: "Home",
+      label: () =>
+        h(
+          RouterLink,
+          {
+            to: {
+              name: "Home",
+            },
+          },
+          { default: () => "压制" },
+        ),
+    },
     {
       key: "videoCut",
       label: () => {
@@ -411,21 +430,7 @@ const menuOptions = computed<MenuOption[]>(() => {
         ),
     },
   ];
-  const menus = [
-    {
-      label: () =>
-        h(
-          RouterLink,
-          {
-            to: {
-              name: "Home",
-            },
-          },
-          { default: () => "压制" },
-        ),
-      key: "Home",
-      icon: renderIcon(HomeIcon),
-    },
+  const menus: MenuOption[] = [
     {
       key: "recorder",
       label: () =>
@@ -455,18 +460,6 @@ const menuOptions = computed<MenuOption[]>(() => {
       icon: renderIcon(DashboardIcon),
     },
     {
-      label: () => h("span", "视频处理"),
-      key: "videoProcessing",
-      icon: renderIcon(VideoClip20Regular),
-      children: videoProcessingSubMenus,
-    },
-    {
-      label: () => h("span", "工具"),
-      key: "tools",
-      icon: renderIcon(BuildIcon),
-      children: toolsSubMenus,
-    },
-    {
       label: () =>
         h(
           RouterLink,
@@ -479,6 +472,18 @@ const menuOptions = computed<MenuOption[]>(() => {
         ),
       key: "Queue",
       icon: renderQueueIcon(QueueIcon),
+    },
+    {
+      label: () => h("span", "视频处理"),
+      key: "videoProcessing",
+      icon: renderIcon(VideoClip20Regular),
+      children: videoProcessingSubMenus,
+    },
+    {
+      label: () => h("span", "工具"),
+      key: "tools",
+      icon: renderIcon(BuildIcon),
+      children: toolsSubMenus,
     },
   ];
   if (isWeb.value) {
@@ -497,20 +502,6 @@ const menuOptions = computed<MenuOption[]>(() => {
       icon: renderIcon(FolderIcon),
     });
   }
-  menus.push({
-    label: () =>
-      h(
-        RouterLink,
-        {
-          to: {
-            name: "User",
-          },
-        },
-        { default: () => "用户" },
-      ),
-    key: "User",
-    icon: renderImg(userInfo.value?.profile?.face || defaultUserAvatar),
-  });
 
   return menus;
 });
@@ -596,6 +587,14 @@ initChanglog();
       padding-right: 0px;
     }
   }
+
+  &.mobile {
+    margin: 0;
+
+    & > .n-layout-scroll-container {
+      padding: 0 10px 10px 10px;
+    }
+  }
 }
 
 .mobile-header {
@@ -629,6 +628,7 @@ initChanglog();
   position: relative;
   z-index: 10;
   background: var(--bg-primary);
+  border-top: 1px solid var(--border-secondary);
 }
 
 .mobile-main-menu {
@@ -643,14 +643,6 @@ initChanglog();
 .mobile-drawer-content {
   > .n-drawer-body {
     min-height: 0;
-  }
-}
-
-&.mobile {
-  margin: 0;
-
-  & > .n-layout-scroll-container {
-    padding: 0 10px 10px 10px;
   }
 }
 </style>

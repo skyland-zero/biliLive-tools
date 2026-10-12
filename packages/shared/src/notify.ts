@@ -11,6 +11,7 @@ import type {
   NotificationNtfyConfig,
   NotificationPushAllInAllConfig,
   NotificationCustomHttpConfig,
+  NotificationWxPusherConfig,
 } from "@biliLive-tools/types";
 
 /**
@@ -279,6 +280,50 @@ export async function sendByCustomHttp(
   }
 }
 
+/**
+ * 通过 WxPusher 极简推送发送通知
+ */
+export async function sendByWxPusher(
+  title: string,
+  desp: string,
+  options: NotificationWxPusherConfig,
+) {
+  if (!options?.spt) {
+    throw new Error("WxPusher spt 不能为空");
+  }
+
+  const url = "https://wxpusher.zjiecode.com/api/send/message/simple-push";
+  const content = desp
+    ? `<h2>${title}</h2><div>${desp.replace(/\n/g, "<br/>")}</div>`
+    : `<h2>${title}</h2>`;
+
+  const data = {
+    content,
+    summary: title,
+    contentType: 2, // HTML
+    spt: options.spt,
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    const json = (await res.json()) as { code: number; msg?: string; success?: boolean };
+    log.info("sendByWxPusher res", json);
+    if (json.code !== 1000) {
+      throw new Error(json.msg || `WxPusher 发送失败: code ${json.code}`);
+    }
+    return json;
+  } catch (e) {
+    log.error("sendByWxPusher error", e);
+    throw e;
+  }
+}
+
 export function send(title: string, desp: string, options?: NotificationSendOptions) {
   const config = appConfig.getAll();
   let notifyType = config?.notification?.setting?.type;
@@ -330,6 +375,9 @@ export async function _send(
         appConfig?.notification?.setting?.customHttp,
         options?.context,
       );
+      break;
+    case "wxpusher":
+      await sendByWxPusher(title, desp, appConfig?.notification?.setting?.wxpusher);
       break;
   }
 }

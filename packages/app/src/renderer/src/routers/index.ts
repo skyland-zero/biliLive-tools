@@ -22,7 +22,7 @@ const router = createRouter({
       path: "/",
       name: "Main",
       component: () => import("../pages/Main/index.vue"),
-      redirect: "/home",
+      redirect: "/recorder",
       children: [
         {
           path: "/home",

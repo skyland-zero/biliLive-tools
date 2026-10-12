@@ -11,6 +11,7 @@
         v-if="config.notification.setting.type"
         type="primary"
         style="margin-left: 10px"
+        :loading="testing"
         @click="notifyTest"
       >
         测试
@@ -211,6 +212,20 @@
         ></n-input>
       </n-form-item>
     </template>
+    <template v-else-if="config.notification.setting.type === NotificationType.wxpusher">
+      <n-form-item>
+        <template #label>
+          <span class="inline-flex">
+            <span> SPT 令牌 </span>
+            <Tip tip="扫描 WxPusher 极简推送二维码获取的令牌，以 SPT_ 开头"></Tip>
+          </span>
+        </template>
+        <n-input
+          v-model:value="config.notification.setting.wxpusher.spt"
+          placeholder="请输入以 SPT_ 开头的令牌"
+        ></n-input>
+      </n-form-item>
+    </template>
 
     <n-divider />
 
@@ -348,24 +363,56 @@ const typeOptions = [
   { value: NotificationType.mail, label: "邮箱" },
   { value: NotificationType.tg, label: "tg bot" },
   { value: NotificationType.server, label: "server酱" },
+  { value: NotificationType.wxpusher, label: "WxPusher (极简推送)" },
   { value: NotificationType.ntfy, label: "ntfy" },
   { value: NotificationType.allInOne, label: "push all in cloud" },
   { value: NotificationType.customHttp, label: "自定义HTTP" },
 ];
 
+if (!config.value.notification.setting.wxpusher) {
+  config.value.notification.setting.wxpusher = { spt: "" };
+}
+
 const notice = useNotification();
 
+const testing = ref(false);
+
 const notifyTest = async () => {
-  await configApi.notifyTest(
-    "我是一条测试信息",
-    "我是一条测试信息",
-    cloneDeep(config.value),
-    config.value.notification.setting.type,
-  );
-  notice.info({
-    title: "已尝试发送测试信息，请注意查收",
-    duration: 2000,
-  });
+  if (config.value.notification.setting.type === NotificationType.wxpusher) {
+    if (!config.value.notification.setting.wxpusher?.spt?.trim()) {
+      notice.error({
+        title: "请先输入 SPT 令牌",
+        duration: 3000,
+      });
+      return;
+    }
+  }
+  testing.value = true;
+  try {
+    await configApi.notifyTest(
+      "我是一条测试信息",
+      "我是一条测试信息",
+      cloneDeep(config.value),
+      config.value.notification.setting.type,
+    );
+    notice.success({
+      title: "发送测试成功，请在微信中查收",
+      duration: 3000,
+    });
+  } catch (error: any) {
+    const errorMsg =
+      error?.response?.data?.message ||
+      error?.response?.data ||
+      error?.message ||
+      String(error);
+    notice.error({
+      title: "发送测试失败",
+      content: String(errorMsg),
+      duration: 5000,
+    });
+  } finally {
+    testing.value = false;
+  }
 };
 </script>
 

@@ -172,22 +172,30 @@ const stateMap = {
 .recorder-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
 }
 .recorder {
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-  border-radius: 5px;
+  box-shadow: 0 2px 10px var(--shadow-color);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-secondary);
+  border-radius: 8px;
   position: relative;
-  // width: 288px;
-  flex: 1 0 320px;
-  max-width: 500px;
+  flex: 1 0 300px;
+  max-width: 480px;
+  overflow: hidden;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 14px var(--shadow-color);
+  }
 
   .cover-container {
     position: relative;
     width: 100%;
     height: 162px;
-    border-radius: 5px 5px 0px 0px;
-    border-color: white;
+    border-radius: 8px 8px 0px 0px;
     overflow: hidden;
 
     .cover {
@@ -252,16 +260,19 @@ const stateMap = {
 
   .content {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     margin: 10px;
+    align-items: center;
     .avatar {
-      width: 50px;
-      height: 50px;
-      border-radius: 5px;
-      margin-left: -10px;
+      width: 46px;
+      height: 46px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      border: 1px solid var(--border-secondary);
     }
     .owner {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: bold;
     }
   }

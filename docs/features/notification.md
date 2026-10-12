@@ -11,6 +11,7 @@
 - 邮箱（SMTP）
 - Server酱
 - Telegram Bot
+- WxPusher（极简推送）
 - ntfy
 - push-all-in-cloud
 - 自定义HTTP
@@ -161,6 +162,24 @@ Server酱支持免费推送信息到手机微信，免费账户有限制。
 ::: tip 提示
 国内网络可能需要代理才能访问 Telegram。
 :::
+
+## WxPusher（极简推送）
+
+[WxPusher](https://wxpusher.zjiecode.com/) 微信推送服务，支持免注册、免建应用的「极简推送（SPT）」模式。
+
+### 配置步骤
+
+1. 手机微信访问 [WxPusher 极简推送文档](https://wxpusher.zjiecode.com/docs/spt.html) 扫描二维码获取以 `SPT_` 开头的令牌。
+2. 打开“设置” -> “通知设置”。
+3. 通知类型选择“WxPusher (极简推送)”。
+4. 填入获取到的 SPT 令牌。
+5. 点击“测试”按钮测试微信接收。
+
+### 配置项
+
+| 配置项   | 说明                           | 示例                  |
+| -------- | ------------------------------ | --------------------- |
+| SPT 令牌 | 极简推送令牌（以 `SPT_` 开头） | `SPT_abcdef123456...` |
 
 ## ntfy
 

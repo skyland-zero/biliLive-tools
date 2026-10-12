@@ -1,61 +1,65 @@
 <template>
   <div class="container">
     <div class="filter-container">
-      <n-input
-        v-model:value="params.name"
-        placeholder="备注或房间号"
-        style="width: 140px"
-        clearable
-      />
-      <n-select
-        v-model:value="params.platform"
-        :options="platformOptions"
-        placeholder="平台"
-        style="width: 140px"
-        clearable
-      />
-      <n-select
-        v-model:value="params.status"
-        :options="statusOptions"
-        placeholder="录制状态"
-        style="width: 140px"
-        clearable
-      />
-      <n-select
-        v-model:value="params.autoCheck"
-        :options="recordOptions"
-        placeholder="监听状态"
-        style="width: 140px"
-        clearable
-      />
-      <n-select
-        v-model:value="recorderLocalParams.pageSize"
-        :options="pageSizeOptions"
-        placeholder="每页显示"
-        style="width: 110px"
-      />
-      <n-select
-        v-model:value="recorderLocalParams.view"
-        :options="viewOptions"
-        placeholder="视图"
-        style="width: 110px"
-      />
-      <SortButton
-        :field="sortField"
-        :direction="recorderLocalParams.sortDirection"
-        :options="[
-          { label: '默认状态', key: undefined },
-          { label: '直播状态', key: 'living' },
-          { label: '录制状态', key: 'state' },
-          { label: '监听状态', key: 'monitorStatus' },
-          { label: '录制时间', key: 'recordTime' },
-        ]"
-        @update:field="handleSortFieldChange"
-        @update:direction="handleSortDirectionChange"
-      />
-      <ColumnSelector v-model="visibleColumns" :columns="columnConfig" />
-      <n-button type="warning" @click="getLiveInfo(true)">刷新</n-button>
-      <ButtonGroup :options="actionBtns" @click="handleActionClick">添加</ButtonGroup>
+      <div class="filter-left">
+        <n-input
+          v-model:value="params.name"
+          placeholder="备注或房间号"
+          style="width: 140px"
+          clearable
+        />
+        <n-select
+          v-model:value="params.platform"
+          :options="platformOptions"
+          placeholder="平台"
+          style="width: 130px"
+          clearable
+        />
+        <n-select
+          v-model:value="params.status"
+          :options="statusOptions"
+          placeholder="录制状态"
+          style="width: 130px"
+          clearable
+        />
+        <n-select
+          v-model:value="params.autoCheck"
+          :options="recordOptions"
+          placeholder="监听状态"
+          style="width: 130px"
+          clearable
+        />
+      </div>
+      <div class="filter-right">
+        <n-select
+          v-model:value="recorderLocalParams.pageSize"
+          :options="pageSizeOptions"
+          placeholder="每页显示"
+          style="width: 110px"
+        />
+        <n-select
+          v-model:value="recorderLocalParams.view"
+          :options="viewOptions"
+          placeholder="视图"
+          style="width: 100px"
+        />
+        <SortButton
+          :field="sortField"
+          :direction="recorderLocalParams.sortDirection"
+          :options="[
+            { label: '默认状态', key: undefined },
+            { label: '直播状态', key: 'living' },
+            { label: '录制状态', key: 'state' },
+            { label: '监听状态', key: 'monitorStatus' },
+            { label: '录制时间', key: 'recordTime' },
+          ]"
+          @update:field="handleSortFieldChange"
+          @update:direction="handleSortDirectionChange"
+        />
+        <ColumnSelector v-model="visibleColumns" :columns="columnConfig" />
+        <n-button type="warning" @click="getLiveInfo(true)">刷新</n-button>
+        <ButtonGroup :options="actionBtns" @click="handleActionClick">添加</ButtonGroup>
+      </div>
     </div>
 
     <template v-if="list.length > 0">
@@ -816,17 +820,22 @@ const handleActionClick = (key?: string | number) => {
 }
 .filter-container {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 12px;
   position: sticky;
   top: 0;
   z-index: 10;
   background: var(--n-color);
   padding-bottom: 15px;
-}
-@media (max-width: 1024px) {
-  .filter-container {
+
+  .filter-left,
+  .filter-right {
+    display: flex;
+    align-items: center;
     flex-wrap: wrap;
+    gap: 10px;
   }
 }
 

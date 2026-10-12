@@ -57,7 +57,7 @@ const login = async () => {
 
   window.localStorage.setItem("api", api.value);
   window.localStorage.setItem("key", key.value);
-  router.push({ name: "Home" });
+  router.push({ name: "recorder" });
 
   request.defaults.baseURL = api.value;
 };

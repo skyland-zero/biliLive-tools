@@ -371,6 +371,14 @@ export interface NotificationCustomHttpConfig {
   headers?: string;
 }
 
+/**
+ * WxPusher 极简推送配置
+ */
+export interface NotificationWxPusherConfig {
+  /** 极简推送令牌，以 SPT_ 开头 */
+  spt: string;
+}
+
 export type Theme = "system" | "light" | "dark";
 type FormatName = "auto" | "flv" | "hls" | "fmp4" | "flv_only" | "hls_only" | "fmp4_only";
 type CodecName = "auto" | "avc" | "hevc" | "avc_only" | "hevc_only";
@@ -719,7 +727,16 @@ export interface AppConfig {
     /** 通知配置项 */
     setting: {
       // 通知类型，支持server酱和邮件
-      type?: "server" | "mail" | "tg" | "system" | "ntfy" | "allInOne" | "customHttp" | null;
+      type?:
+        | "server"
+        | "mail"
+        | "tg"
+        | "system"
+        | "ntfy"
+        | "allInOne"
+        | "customHttp"
+        | "wxpusher"
+        | null;
       // server酱key
       server: NotificationServerConfig;
       mail: NotificationMailConfig;
@@ -727,6 +744,7 @@ export interface AppConfig {
       ntfy: NotificationNtfyConfig;
       allInOne: NotificationPushAllInAllConfig;
       customHttp: NotificationCustomHttpConfig;
+      wxpusher: NotificationWxPusherConfig;
     };
     taskNotificationType: {
       liveStart: AppConfig["notification"]["setting"]["type"];

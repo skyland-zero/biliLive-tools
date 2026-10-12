@@ -24,6 +24,7 @@ export enum NotificationType {
   ntfy = "ntfy",
   allInOne = "allInOne",
   customHttp = "customHttp",
+  wxpusher = "wxpusher",
 }
 
 export enum LLMType {
@@ -230,6 +231,9 @@ export const APP_DEFAULT_CONFIG: AppConfig = {
         method: "GET",
         body: "",
         headers: "",
+      },
+      wxpusher: {
+        spt: "",
       },
     },
     taskNotificationType: {

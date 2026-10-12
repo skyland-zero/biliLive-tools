@@ -25,13 +25,14 @@
               active: item.uid === userInfo.uid,
             }"
           >
+            <div v-if="item.uid === userInfo.uid" class="active-badge">使用中</div>
             <div v-if="item.expiresText" class="expires">{{ item.expiresText }}</div>
 
-            <span class="username">{{ item.name }}</span>
             <img :src="item.face" alt="" referrerpolicy="no-referrer" class="face" />
+            <span class="username" :title="item.name">{{ item.name }}</span>
             <n-popover placement="right-start" trigger="hover">
               <template #trigger>
-                <n-icon size="25" class="pointer menu">
+                <n-icon size="20" class="pointer menu">
                   <EllipsisHorizontalOutline />
                 </n-icon>
               </template>
@@ -64,7 +65,6 @@
             <div class="expires" :class="{ expired: douyuRemainingDays(item.createdAt) === 0 }">
               {{ douyuExpiryText(item.createdAt) }}
             </div>
-            <span class="username">{{ item.name }}</span>
             <img
               v-if="item.avatar"
               :src="item.avatar"
@@ -73,9 +73,10 @@
               class="face"
             />
             <div v-else class="face-placeholder">{{ item.uid }}</div>
+            <span class="username" :title="item.name">{{ item.name }}</span>
             <n-popover placement="right-start" trigger="hover">
               <template #trigger>
-                <n-icon size="25" class="pointer menu"><EllipsisHorizontalOutline /></n-icon>
+                <n-icon size="20" class="pointer menu"><EllipsisHorizontalOutline /></n-icon>
               </template>
               <div style="padding: 5px 10px">uid: {{ item.uid }}</div>
               <div class="section" @click="douyuValidate(item.uid)">校验有效性</div>
@@ -438,49 +439,63 @@ onActivated(() => {
 .container {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 16px;
   margin-top: 20px;
   .card {
-    padding: 10px;
-    width: 100px;
+    padding: 16px 12px;
+    width: 130px;
     border-radius: 10px;
     background-color: var(--bg-card);
     justify-content: center;
     align-items: center;
-    border: 1px solid var(--border-primary);
+    border: 1px solid var(--border-secondary);
     position: relative;
     display: flex;
     flex-direction: column;
+    transition: all 0.2s ease;
+
+    &:hover {
+      box-shadow: 0 4px 14px var(--shadow-color);
+    }
+
     .face {
-      width: 80%;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      object-fit: cover;
+      margin-bottom: 8px;
+      border: 1px solid var(--border-secondary);
     }
     .menu {
       position: absolute;
-      bottom: 0px;
-      right: 5px;
+      top: 6px;
+      right: 6px;
       color: var(--text-secondary);
+      opacity: 0.7;
+      transition: opacity 0.2s ease;
+
+      &:hover {
+        opacity: 1;
+      }
     }
   }
   .card.active {
-    &::before {
-      content: "正在使用";
-      display: block;
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      color: #ffffff;
-      background-color: var(--bg-modal);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      border-radius: 10px;
-    }
-    .menu {
-      color: #eee;
-    }
+    border: 2px solid var(--color-primary);
+    box-shadow: 0 0 12px rgba(24, 160, 88, 0.2);
   }
+}
+
+.active-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 9px 0 9px 0;
+  font-weight: 500;
+  z-index: 2;
 }
 
 .section {
@@ -495,14 +510,14 @@ onActivated(() => {
   }
 }
 .expires {
-  z-index: 1000;
+  z-index: 10;
   position: absolute;
   bottom: 0;
   left: 0;
   background: var(--color-success);
   color: var(--text-inverse);
-  padding: 4px 6px;
-  border-radius: 0 10px 0 10px;
+  padding: 2px 6px;
+  border-radius: 0 8px 0 10px;
   font-size: 10px;
   &.expired {
     background: var(--color-danger-text);
@@ -510,14 +525,23 @@ onActivated(() => {
 }
 .username {
   color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .face-placeholder {
-  width: 80%;
-  aspect-ratio: 1;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-secondary);
   background: var(--bg-hover);
+  font-size: 11px;
 }
 </style>

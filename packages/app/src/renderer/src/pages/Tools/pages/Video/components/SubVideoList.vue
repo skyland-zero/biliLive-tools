@@ -101,8 +101,9 @@ const hanleChannelURL = (platform: string, roomId: string) => {
 .card {
   min-width: 200px;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  background-color: #fff;
+  box-shadow: 0 2px 8px var(--shadow-color);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-secondary);
   overflow: hidden;
   transition:
     transform 0.2s,
@@ -110,7 +111,7 @@ const hanleChannelURL = (platform: string, roomId: string) => {
 
   &:hover {
     // transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px var(--shadow-color);
   }
 
   .card-content {
@@ -119,6 +120,7 @@ const hanleChannelURL = (platform: string, roomId: string) => {
     .name {
       font-size: 18px;
       font-weight: 500;
+      color: var(--text-primary);
       display: block;
       white-space: nowrap;
       overflow: hidden;
@@ -130,7 +132,7 @@ const hanleChannelURL = (platform: string, roomId: string) => {
   }
 
   .card-action {
-    border-top: 1px solid #f0f0f0;
+    border-top: 1px solid var(--border-secondary);
     padding: 8px 12px;
     text-align: right;
   }

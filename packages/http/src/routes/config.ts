@@ -49,7 +49,7 @@ router.get("/get", async (ctx) => {
 
 router.post("/set", async (ctx) => {
   const data = ctx.request.body;
-  if (!data.key || !data.value) {
+  if (data.key === undefined || data.value === undefined) {
     ctx.body = "key and value is required";
     return;
   }

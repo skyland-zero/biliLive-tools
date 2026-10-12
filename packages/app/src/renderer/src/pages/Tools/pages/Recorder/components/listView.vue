@@ -32,7 +32,7 @@
             <ArrowUpOutline></ArrowUpOutline>
           </n-icon>
         </th>
-        <td v-if="isColumnVisible('recordParams')">录制参数</td>
+        <th v-if="isColumnVisible('recordParams')">录制参数</th>
         <th v-if="isColumnVisible('lastRecordTime')">上次录制</th>
         <th
           v-if="isColumnVisible('monitorStatus')"
@@ -74,7 +74,7 @@
         <td
           v-if="isColumnVisible('living')"
           :style="{
-            color: item.living ? 'skyblue' : 'normal',
+            color: item.living ? 'var(--color-primary)' : 'var(--text-muted)',
           }"
         >
           {{ item.living ? "直播中" : "未开始" }}
