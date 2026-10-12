@@ -20,6 +20,7 @@ import {
   mergeVideos,
   transcode,
   burn,
+  mergeVideoAndBurn,
   readVideoMeta,
   cut,
   checkMergeVideos,
@@ -315,6 +316,27 @@ router.post("/burn", async (ctx) => {
     });
   }
 
+  ctx.body = { taskId: task.taskId };
+});
+
+/**
+ * 多分片合并压制
+ */
+router.post("/mergeVideoAndBurn", async (ctx) => {
+  const { files, output, options } = ctx.request.body as any;
+
+  if (!files || !Array.isArray(files) || files.length === 0) {
+    ctx.status = 400;
+    ctx.body = "files is required";
+    return;
+  }
+  if (!output) {
+    ctx.status = 400;
+    ctx.body = "output is required";
+    return;
+  }
+
+  const task = await mergeVideoAndBurn(files, output, options);
   ctx.body = { taskId: task.taskId };
 });
 

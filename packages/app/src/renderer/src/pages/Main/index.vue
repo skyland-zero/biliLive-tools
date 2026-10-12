@@ -9,7 +9,7 @@
         :width="208"
         :collapsed="collapsed"
         :show-trigger="false"
-        :native-scrollbar="false"
+        :native-scrollbar="true"
         class="app-sider"
       >
         <div class="sider-wrapper">
@@ -76,17 +76,15 @@
           </div>
 
           <div class="sider-menu-body">
-            <n-scrollbar>
-              <n-menu
-                v-model:value="activeKey"
-                v-model:expanded-keys="expandedMenuKeys"
-                class="main-menu"
-                :collapsed="collapsed"
-                :collapsed-width="64"
-                :collapsed-icon-size="20"
-                :options="menuOptions"
-              />
-            </n-scrollbar>
+            <n-menu
+              v-model:value="activeKey"
+              v-model:expanded-keys="expandedMenuKeys"
+              class="main-menu"
+              :collapsed="collapsed"
+              :collapsed-width="64"
+              :collapsed-icon-size="20"
+              :options="menuOptions"
+            />
           </div>
 
           <div class="sider-footer">
@@ -149,14 +147,12 @@
         <span class="mobile-drawer-title">biliLive-tools</span>
       </div>
       <div class="mobile-drawer-body">
-        <n-scrollbar>
-          <n-menu
-            v-model:value="activeKey"
-            v-model:expanded-keys="expandedMenuKeys"
-            class="mobile-main-menu"
-            :options="menuOptions"
-          />
-        </n-scrollbar>
+        <n-menu
+          v-model:value="activeKey"
+          v-model:expanded-keys="expandedMenuKeys"
+          class="mobile-main-menu"
+          :options="menuOptions"
+        />
       </div>
       <div class="mobile-drawer-footer">
         <n-menu
@@ -709,7 +705,38 @@ initChanglog();
   height: 100%;
   background: var(--bg-primary);
 
-  & > .n-layout-sider-scroll-container {
+  // 彻底隐藏 Naive UI 的任何虚拟滚动条轨道与滑块
+  .n-scrollbar-rail,
+  .n-scrollbar-rail__scrollbar {
+    display: none !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    pointer-events: none !important;
+  }
+
+  // 彻底隐藏所有容器的原生/WebKit滚动条
+  &,
+  & *,
+  .sider-wrapper,
+  .sider-menu-body,
+  .n-layout-sider-scroll-container,
+  .n-scrollbar-container {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+
+    &::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+    }
+  }
+
+  // 保证 sider 外层容器不产生外层溢出滚动
+  & > .n-layout-sider-scroll-container,
+  & > .n-layout-scroll-container,
+  & > .n-scrollbar,
+  & > .n-scrollbar > .n-scrollbar-container {
     height: 100%;
     overflow: hidden !important;
   }
@@ -861,7 +888,17 @@ initChanglog();
 .sider-menu-body {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* 方案A：彻底隐藏视觉滚动条，但保留鼠标滚轮/触控板自然平滑滚动 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 
   .main-menu {
     padding: 6px 0;
@@ -894,7 +931,16 @@ initChanglog();
 .mobile-drawer-body {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
 }
 
 .mobile-drawer-footer {

@@ -236,6 +236,8 @@ export type ToolConfig = {
     danmuPresetId: string;
     /** 高能进度条 */
     hotProgress: boolean;
+    /** 合并为一个视频（多分片合并压制） */
+    mergeIntoOne?: boolean;
   };
   videoMerge: {
     /** 保存到原始文件夹 */

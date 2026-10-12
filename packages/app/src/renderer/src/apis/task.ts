@@ -177,6 +177,34 @@ const burn = async (
   return res.data;
 };
 
+/**
+ * 多分片合并压制：把多个视频（含各自弹幕）合并压制成一个视频
+ */
+const mergeVideoAndBurn = async (
+  files: { videoPath: string; danmuPath?: string }[],
+  output: string,
+  options: {
+    danmaOptions: DanmuPreset["config"];
+    ffmpegOptions: FfmpegOptions;
+    hotProgressOptions: Omit<HotProgressOptions, "videoPath">;
+    hasHotProgress: boolean;
+    override?: boolean;
+    removeOrigin?: boolean;
+    /** 支持绝对路径和相对路径 */
+    savePath?: string;
+    /** 1: 保存到原始文件夹，2：保存到特定文件夹 */
+    saveType?: 1 | 2;
+    limitTime?: [string, string];
+  },
+) => {
+  const res = await request.post(`/task/mergeVideoAndBurn`, {
+    files,
+    output,
+    options,
+  });
+  return res.data;
+};
+
 const flvRepair = async (
   input: string,
   output: string,
@@ -367,6 +395,7 @@ const task = {
   mergeVideos,
   transcode,
   burn,
+  mergeVideoAndBurn,
   sendToWebhook,
   removeBatch,
   readVideoMeta,

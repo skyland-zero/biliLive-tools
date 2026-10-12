@@ -26,7 +26,7 @@ import {
 } from "../utils/index.js";
 import log from "../utils/log.js";
 import { taskQueue, FFmpegTask, AbstractTask } from "./task.js";
-import { isEmptyDanmu, convertXml2Ass, genHotProgress } from "./danmu.js";
+import { isEmptyDanmu, convertXml2Ass, genHotProgress, mergeXml } from "./danmu.js";
 import { recordHistoryService } from "../db/index.js";
 
 import type {
@@ -1249,18 +1249,15 @@ export const checkMergeVideos = async (
 };
 
 /**
- * 合并视频
+ * 添加合并视频任务（内部方法，返回任务实例以便等待完成）
  * @param inputFiles 输入文件
- * @param output 输出文件
  * @param options 选项
+ * @param autoRun 是否立即执行，默认交由任务队列调度
  */
-export const mergeVideos = async (
+const addMergeVideosTask = async (
   inputFiles: string[],
-  options: VideoMergeOptions = {
-    removeOrigin: false,
-    saveOriginPath: false,
-    keepFirstVideoMeta: false,
-  },
+  options: VideoMergeOptions,
+  autoRun = false,
 ) => {
   if (!inputFiles || inputFiles.length < 2) {
     throw new Error("inputVideos length must be greater than 1");
@@ -1328,7 +1325,24 @@ export const mergeVideos = async (
     },
   );
 
-  taskQueue.addTask(task, false);
+  taskQueue.addTask(task, autoRun);
+  return task;
+};
+
+/**
+ * 合并视频
+ * @param inputFiles 输入文件
+ * @param options 选项
+ */
+export const mergeVideos = async (
+  inputFiles: string[],
+  options: VideoMergeOptions = {
+    removeOrigin: false,
+    saveOriginPath: false,
+    keepFirstVideoMeta: false,
+  },
+) => {
+  const task = await addMergeVideosTask(inputFiles, options);
   return {
     status: "success",
     text: "添加到任务队列",
@@ -1467,6 +1481,175 @@ export const burn = async (
     },
     options.ffmpegOptions,
   );
+
+  return task;
+};
+
+/**
+ * 多分片合并压制：把同一场直播的多个录制分片（含各自弹幕）合并压制成一个视频
+ *
+ * 与 {@link burn} 的区别：输入是多个视频，内部会先无损合并视频、按各分片时长顺延合并弹幕，
+ * 再对合并后的视频进行压制，最终只产出一个视频文件。
+ * @param files 输入文件，danmuPath 为空表示该视频不压制弹幕
+ * @param output 输出文件，支持绝对路径和相对路径
+ * @param options 选项
+ */
+export const mergeVideoAndBurn = async (
+  files: { videoPath: string; danmuPath?: string }[],
+  output: string,
+  options: {
+    danmaOptions: DanmuConfig;
+    ffmpegOptions: FfmpegOptions;
+    hotProgressOptions: Omit<HotProgressOptions, "videoPath">;
+    hasHotProgress: boolean;
+    override?: boolean;
+    removeOrigin?: boolean;
+    /** 支持绝对路径和相对路径 */
+    savePath?: string;
+    /** 1: 保存到原始文件夹，2：保存到特定文件夹 */
+    saveType?: 1 | 2;
+    limitTime?: [string, string];
+  },
+): Promise<AbstractTask> => {
+  if (!files || files.length === 0) {
+    throw new Error("至少需要一个视频文件");
+  }
+  if (options.ffmpegOptions.encoder === "copy") {
+    throw new Error("视频编码不能为copy");
+  }
+
+  const videoFiles = files.map((file) => file.videoPath);
+  const hasDanmu = files.some((file) => file.danmuPath);
+  if (hasDanmu && files.some((file) => !file.danmuPath)) {
+    throw new Error("合并压制时需要为所有视频选择对应的弹幕文件");
+  }
+
+  // 输出路径以第一个视频所在位置为基准
+  let outputFile = output;
+  if (!path.isAbsolute(output)) {
+    const savePath = await parseSavePath(videoFiles[0], {
+      saveType: options.saveType ?? 1,
+      savePath: options.savePath ?? "",
+    });
+    outputFile = path.join(savePath, output);
+  }
+
+  // 只有一个视频时等价于普通压制
+  if (files.length === 1) {
+    const danmuPath = files[0].danmuPath;
+    if (!danmuPath) {
+      return mergeAssMp4(
+        {
+          videoFilePath: videoFiles[0],
+          assFilePath: undefined,
+          outputPath: outputFile,
+          hotProgressFilePath: undefined,
+        },
+        {
+          removeOrigin: options.removeOrigin ?? false,
+          override: options.override ?? false,
+          limitTime: options.limitTime,
+        },
+        options.ffmpegOptions,
+      );
+    }
+    return burn({ videoFilePath: videoFiles[0], subtitleFilePath: danmuPath }, outputFile, {
+      danmaOptions: options.danmaOptions,
+      ffmpegOptions: options.ffmpegOptions,
+      hotProgressOptions: options.hotProgressOptions,
+      hasHotProgress: options.hasHotProgress,
+      override: options.override,
+      removeOrigin: options.removeOrigin,
+      limitTime: options.limitTime,
+    });
+  }
+
+  // 1. 合并弹幕，时间轴按各分片时长顺延
+  let mergedDanmuPath: string | undefined;
+  if (hasDanmu) {
+    mergedDanmuPath = await mergeXml(
+      files.map((file) => ({ videoPath: file.videoPath, danmakuPath: file.danmuPath! })),
+      { output: join(getTempPath(), `${uuid()}.xml`), saveMeta: true },
+    );
+  }
+
+  // 2. 无损合并视频，中间文件与输出文件同目录，避免额外占用系统盘
+  const { dir, name, ext } = parse(outputFile);
+  const tempVideoPath = join(dir, `${name}.merging${ext || ".mp4"}`);
+  const mergeTask = await addMergeVideosTask(
+    videoFiles,
+    {
+      output: tempVideoPath,
+      saveOriginPath: false,
+      removeOrigin: false,
+      // 保留第一个分片的元数据，便于压制时读取录制时间等信息
+      keepFirstVideoMeta: true,
+    },
+    true,
+  );
+  await promiseTask(mergeTask);
+
+  // 3. 压制合并后的视频
+  let task: AbstractTask;
+  if (mergedDanmuPath) {
+    task = await burn(
+      { videoFilePath: tempVideoPath, subtitleFilePath: mergedDanmuPath },
+      outputFile,
+      {
+        danmaOptions: options.danmaOptions,
+        ffmpegOptions: options.ffmpegOptions,
+        hotProgressOptions: options.hotProgressOptions,
+        hasHotProgress: options.hasHotProgress,
+        override: options.override,
+        // 源文件在任务结束后统一处理，此处仅清理中间文件
+        removeOrigin: false,
+        limitTime: options.limitTime,
+      },
+    );
+  } else {
+    task = await mergeAssMp4(
+      {
+        videoFilePath: tempVideoPath,
+        assFilePath: undefined,
+        outputPath: outputFile,
+        hotProgressFilePath: undefined,
+      },
+      {
+        removeOrigin: false,
+        override: options.override ?? false,
+        limitTime: options.limitTime,
+      },
+      options.ffmpegOptions,
+    );
+  }
+
+  // 4. 清理中间文件，并按需移除源文件
+  const cleanTempFiles = async () => {
+    await fs.remove(tempVideoPath).catch((error) => {
+      log.error("mergeVideoAndBurn, remove temp video error", error);
+    });
+    if (mergedDanmuPath) {
+      await fs.remove(mergedDanmuPath).catch((error) => {
+        log.error("mergeVideoAndBurn, remove temp danmu error", error);
+      });
+    }
+  };
+
+  task.on("task-end", async () => {
+    await cleanTempFiles();
+    if (options.removeOrigin) {
+      await Promise.all(
+        files.map(async (file) => {
+          await trashItem(file.videoPath);
+          if (file.danmuPath) {
+            await trashItem(file.danmuPath);
+          }
+        }),
+      );
+    }
+  });
+  task.on("task-error", cleanTempFiles);
+  task.on("task-cancel", cleanTempFiles);
 
   return task;
 };

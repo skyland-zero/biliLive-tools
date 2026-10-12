@@ -16,6 +16,14 @@
         <template #header-extra>
           <div class="file-actions">
             <n-text depth="3">已选择 {{ fileList.length }} 个</n-text>
+            <n-dropdown
+              v-if="options.mergeIntoOne"
+              :options="sortOptions"
+              :disabled="fileList.length < 2 || submitting"
+              @select="sortFiles"
+            >
+              <n-button size="small" :disabled="fileList.length < 2 || submitting">排序</n-button>
+            </n-dropdown>
             <n-button size="small" :disabled="submitting" @click="addVideo">添加文件</n-button>
             <n-button size="small" :disabled="fileList.length === 0 || submitting" @click="clear">
               清空
@@ -26,13 +34,21 @@
         <FileSelect
           ref="fileSelect"
           v-model="fileList"
-          :sort="false"
+          :sort="options.mergeIntoOne"
           :extensions="[...supportedVideoExtensions, 'xml', 'ass']"
           input-placeholder="输入内容将会被用为文件名"
           area-placeholder="请选择视频文件，可同时选择对应的弹幕文件"
         />
         <n-text depth="3" class="file-hint">
-          {{ isWeb ? "可一次选择多个视频及弹幕文件" : "可点击选择或拖入多个视频及弹幕文件" }}
+          {{
+            options.mergeIntoOne
+              ? isWeb
+                ? "可一次选择同一场直播的多个分片及对应弹幕文件，合并后压制成一个视频"
+                : "可点击选择或拖入同一场直播的多个分片及对应弹幕文件，合并后压制成一个视频"
+              : isWeb
+                ? "可一次选择多个视频及弹幕文件"
+                : "可点击选择或拖入多个视频及弹幕文件"
+          }}
         </n-text>
       </n-card>
 
@@ -40,6 +56,17 @@
         <template #header>
           <div class="card-heading"><span class="step-number">2</span>设置</div>
         </template>
+
+        <div class="setting-section source-option">
+          <n-checkbox v-model:checked="options.mergeIntoOne">合并为一个视频</n-checkbox>
+          <n-text depth="3">
+            {{
+              options.mergeIntoOne
+                ? "按当前顺序合并所有视频，并把各分片弹幕合并后一起压制，输出文件名为第一个视频的文件名（所有视频都需要选择弹幕文件）"
+                : "每个视频单独压制"
+            }}
+          </n-text>
+        </div>
 
         <div class="setting-section">
           <div class="setting-title">视频预设</div>
@@ -132,7 +159,7 @@
 
     <div class="submit-bar">
       <div class="submit-summary">
-        <strong>{{ fileList.length }} 个文件待转换</strong>
+        <strong>{{ summaryText }}</strong>
         <n-text depth="3" :title="submitHint">{{ submitHint }}</n-text>
       </div>
       <n-button
@@ -143,7 +170,7 @@
         title="快捷键 Ctrl+Enter"
         @click="convert"
       >
-        开始转换（{{ fileList.length }} 个文件）
+        {{ submitText }}
       </n-button>
     </div>
   </div>
@@ -213,10 +240,45 @@ const submitHint = computed(() => {
   if (!fileList.value.length) return "请先添加视频文件";
   if (!options.ffmpegPresetId) return "请先选择视频预设";
   if (!options.danmuPresetId) return "请先选择弹幕预设";
+  if (options.mergeIntoOne) {
+    return options.saveRadio === 1
+      ? "合并为一个视频，输出到首个视频所在文件夹"
+      : `合并为一个视频，输出到 ${options.savePath.trim() || "请先选择保存目录"}`;
+  }
   return options.saveRadio === 1
     ? "输出到各源文件夹"
     : options.savePath.trim() || "请先选择保存目录";
 });
+
+const summaryText = computed(() =>
+  options.mergeIntoOne
+    ? `${fileList.value.length} 个分片合并为 1 个视频`
+    : `${fileList.value.length} 个文件待转换`,
+);
+const submitText = computed(() =>
+  options.mergeIntoOne
+    ? `开始合并压制（${fileList.value.length} 个分片）`
+    : `开始转换（${fileList.value.length} 个文件）`,
+);
+
+const sortOptions = [
+  { key: "asc", label: "文件名升序" },
+  { key: "desc", label: "文件名降序" },
+];
+const sortFiles = (key: string | number) => {
+  const direction = key === "asc" ? 1 : -1;
+  fileList.value.sort(
+    (a, b) => direction * a.videoPath.localeCompare(b.videoPath, "zh-Hans-CN", { numeric: true }),
+  );
+};
+
+watch(
+  () => options.mergeIntoOne,
+  (mergeIntoOne) => {
+    // 同一场直播的分片按录制时间命名，开启合并后默认按文件名升序排列
+    if (mergeIntoOne) sortFiles("asc");
+  },
+);
 
 onActivated(() => {
   hotkeys("ctrl+enter", () => {
@@ -247,7 +309,7 @@ const convert = async () => {
   const files = cloneDeep(fileList.value);
   const taskOptions = { ...options };
   const homeOptions = { ...appConfig.value.tool.home };
-  submittingTotal.value = files.length;
+  submittingTotal.value = taskOptions.mergeIntoOne ? 1 : files.length;
 
   try {
     const ffmpegConfig = await ffmpegPresetApi.get(taskOptions.ffmpegPresetId);
@@ -263,24 +325,53 @@ const convert = async () => {
 
     const ffmpegConfigOptions = ffmpegConfig.config;
     const danmuOptions = rawDanmuConfig.config;
-    if (ffmpegConfigOptions.encoder === "copy" && files.some((item) => item.danmakuPath)) {
+    const mergeIntoOne = taskOptions.mergeIntoOne;
+    const danmuFiles = files.filter((item) => item.danmakuPath);
+
+    if (mergeIntoOne && ffmpegConfigOptions.encoder === "copy") {
+      notice.error({
+        title: "合并为一个视频时不能使用 copy 编码，请在视频预设中选择其他编码器",
+        duration: 3000,
+      });
+      return;
+    }
+    if (!mergeIntoOne && ffmpegConfigOptions.encoder === "copy" && danmuFiles.length) {
       notice.error({ title: "存在弹幕文件，视频预设编码器不允许使用 copy 选项" });
       return;
     }
-    if (taskOptions.hotProgress && files.some((item) => !item.danmakuPath)) {
+    if (mergeIntoOne && danmuFiles.length !== 0 && danmuFiles.length !== files.length) {
+      notice.error({ title: "合并为一个视频时需要为所有视频选择对应的弹幕文件" });
+      return;
+    }
+    if (taskOptions.hotProgress && danmuFiles.length === 0) {
       notice.error({ title: "未选择弹幕文件，无法使用高能进度条" });
       return;
     }
     if (taskOptions.saveRadio === 1) {
-      const conflict = files.find(
-        (item) => window.path.basename(item.videoPath) === `${item.title}.mp4`,
-      );
+      // 合并为一个视频时，使用第一个文件的文件名作为输出文件名
+      const conflict = files.find((item, index) => {
+        if (mergeIntoOne && index !== 0) return false;
+        const title = mergeIntoOne ? files[0].title : item.title;
+        return window.path.basename(item.videoPath) === `${title}.mp4`;
+      });
       if (conflict) {
         notice.error({
           title: `输入文件与输出文件名相同：${window.path.basename(conflict.videoPath)}，请修改保存路径或文件名`,
           duration: 3000,
         });
         return;
+      }
+    }
+
+    // 合并视频前检查各分片是否可以直接合并
+    if (mergeIntoOne && files.length > 1) {
+      const result = await taskApi.checkMergeVideos(files.map((item) => item.videoPath));
+      if (result.errors.length || result.warnings.length) {
+        const [status] = await confirm.warning({
+          title: "继续合并很有可能出现问题，是否继续？",
+          content: [...result.errors, ...result.warnings].join("\n"),
+        });
+        if (!status) return;
       }
     }
 
@@ -296,50 +387,89 @@ const convert = async () => {
 
     const submittedIds = new Set<string>();
     const failed: { id: string; name: string; message: string }[] = [];
-    for (const file of files) {
-      const outputName = `${file.title}.mp4`;
+    const hotProgressOptions = {
+      interval: homeOptions.hotProgressSample,
+      height: homeOptions.hotProgressHeight,
+      color: homeOptions.hotProgressColor,
+      fillColor: homeOptions.hotProgressFillColor,
+    };
+    let submittedCount = 0;
+
+    if (mergeIntoOne) {
+      // 合并压制：所有分片合并为一个视频，只提交一个任务，输出文件名取第一个文件的文件名
+      const outputName = `${files[0].title}.mp4`;
       try {
-        if (file.danmakuPath) {
-          await taskApi.burn(
-            { videoFilePath: file.videoPath, subtitleFilePath: file.danmakuPath },
-            outputName,
-            {
-              danmaOptions: danmuOptions,
-              ffmpegOptions: ffmpegConfigOptions,
-              hotProgressOptions: {
-                interval: homeOptions.hotProgressSample,
-                height: homeOptions.hotProgressHeight,
-                color: homeOptions.hotProgressColor,
-                fillColor: homeOptions.hotProgressFillColor,
-              },
-              hasHotProgress: taskOptions.hotProgress,
-              override: taskOptions.override,
-              removeOrigin: taskOptions.removeOrigin,
-              savePath: taskOptions.savePath,
-              saveType: taskOptions.saveRadio,
-            },
-          );
-        } else {
-          await taskApi.transcode(file.videoPath, outputName, ffmpegConfigOptions, {
+        await taskApi.mergeVideoAndBurn(
+          files.map((file) => ({
+            videoPath: file.videoPath,
+            danmuPath: file.danmakuPath || undefined,
+          })),
+          outputName,
+          {
+            danmaOptions: danmuOptions,
+            ffmpegOptions: ffmpegConfigOptions,
+            hotProgressOptions,
+            hasHotProgress: taskOptions.hotProgress,
             override: taskOptions.override,
             removeOrigin: taskOptions.removeOrigin,
             savePath: taskOptions.savePath,
             saveType: taskOptions.saveRadio,
-          });
-        }
-        submittedIds.add(file.id);
+          },
+        );
+        files.forEach((file) => submittedIds.add(file.id));
+        submittedCount = 1;
       } catch (error) {
         failed.push({
-          id: file.id,
-          name: file.title,
+          id: files[0].id,
+          name: files[0].title,
           message: error instanceof Error ? error.message : String(error),
         });
       } finally {
-        processedCount.value += 1;
+        processedCount.value = submittingTotal.value;
       }
+    } else {
+      for (const file of files) {
+        const outputName = `${file.title}.mp4`;
+        try {
+          if (file.danmakuPath) {
+            await taskApi.burn(
+              { videoFilePath: file.videoPath, subtitleFilePath: file.danmakuPath },
+              outputName,
+              {
+                danmaOptions: danmuOptions,
+                ffmpegOptions: ffmpegConfigOptions,
+                hotProgressOptions,
+                hasHotProgress: taskOptions.hotProgress,
+                override: taskOptions.override,
+                removeOrigin: taskOptions.removeOrigin,
+                savePath: taskOptions.savePath,
+                saveType: taskOptions.saveRadio,
+              },
+            );
+          } else {
+            await taskApi.transcode(file.videoPath, outputName, ffmpegConfigOptions, {
+              override: taskOptions.override,
+              removeOrigin: taskOptions.removeOrigin,
+              savePath: taskOptions.savePath,
+              saveType: taskOptions.saveRadio,
+            });
+          }
+          submittedIds.add(file.id);
+        } catch (error) {
+          failed.push({
+            id: file.id,
+            name: file.title,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        } finally {
+          processedCount.value += 1;
+        }
+      }
+      submittedCount = submittedIds.size;
     }
+
     fileList.value = fileList.value.filter((file) => !submittedIds.has(file.id));
-    submissionResult.value = { submitted: submittedIds.size, failed };
+    submissionResult.value = { submitted: submittedCount, failed };
   } catch (error) {
     notice.error({ title: error instanceof Error ? error.message : String(error) });
   } finally {
