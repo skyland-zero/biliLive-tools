@@ -4,8 +4,9 @@
   "version": "3.22.2",
   "identifier": "com.skyland.bililivetools",
   "build": {
-    "beforeDevCommand": "pnpm vite:dev",
-    "beforeBuildCommand": "pnpm vite:build",
+    "beforeDevCommand": "pnpm bin:ensure && pnpm native:check && pnpm vite:dev",
+    "beforeBuildCommand": "pnpm bin:check && pnpm native:check && pnpm vite:build",
+    "beforeBundleCommand": "pnpm bin:check && pnpm native:check && pnpm nsis:prepare",
     "devUrl": "http://localhost:28081",
     "frontendDist": "../dist"
   },
@@ -20,7 +21,21 @@
     "icon": ["icons/icon.ico", "icons/icon.icns", "icons/icon.png"],
     "externalBin": ["binaries/node"],
     "resources": {
-      "../../CLI/lib/": "cli/"
+      "../../CLI/lib/": "cli/",
+      "../../app/resources/bin/": "bin/"
+    },
+    "licenseFile": "../../../LICENSE",
+    "homepage": "https://github.com/renmu123/biliLive-tools",
+    "shortDescription": "B站直播录制处理工具",
+    "windows": {
+      "nsis": {
+        "languages": ["SimpChinese", "English"],
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "displayLanguageSelector": false,
+        "template": "nsis/installer.generated.nsi",
+        "compression": "zlib"
+      }
     }
   }
 }

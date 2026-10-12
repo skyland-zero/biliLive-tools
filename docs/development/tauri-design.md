@@ -387,6 +387,15 @@ export function useFileDropZone(
 - 这是体积的**主要来源**，也是 Tauri 相对 Electron 收益被稀释的根本原因
 - 首次启动检测缺失 → 引导用户下载或指定路径
 
+**实施细节**（与最初设计略有偏差，以实际实现为准）：
+
+- 下载产物固定在 `packages/app/resources/bin`，与 Electron 版共用，不再复制到 `src-tauri/bin`；
+  `tauri.conf.json` 用 `"../../app/resources/bin/": "bin/"` 打进 `$RESOURCE/bin`
+- 开发与打包前请先运行 `pnpm run install:bin`：Rust 构建脚本在资源目录不存在时会直接报错，
+  `pnpm bin:ensure`（dev，缺失只警告）/ `pnpm bin:check`（build，缺失直接失败）会在报错前给出明确提示
+- 需要临时使用别处的二进制（如只装了 Electron 版）时，设置环境变量 `BILILIVE_TAURI_BIN_DIR` 指向该目录，
+  Rust 侧 `bin_path` 的优先级：`BILILIVE_TAURI_BIN_DIR` → `$RESOURCE/bin` → 开发态仓库内的 `packages/app/resources/bin` → 系统 `PATH`
+
 ---
 
 ## 6. 平台矩阵与风险
@@ -525,12 +534,18 @@ strategy:
 
 steps:
   - pnpm install
+  - pnpm run install:bin # 下载外部二进制 → packages/app/resources/bin
   - pnpm run build:base # 复用现有基础包构建
-  - pnpm run --filter bililive-cli build # sidecar 产物 + copy_module
+  - pnpm run --filter bililive-cli build # sidecar 产物（rollup + copy_module 剪裁）
   -  # 下载 node 二进制 → src-tauri/binaries/node-<target>[.exe]
-  -  # 下载外部二进制 → resources/bin
   - pnpm tauri build --target <target>
 ```
+
+`tauri build` / `tauri bundle` 的 `beforeBundleCommand` 会自动完成安装包侧的准备：
+`bin:check` → `native:check`（把 `packages/CLI/lib/node_modules` 里的 better-sqlite3
+换成捆绑 node 的 ABI）→ `nsis:prepare`（把 payload 压成 7z、生成 NSIS 模板）。
+安装包的打包方式（为什么不用 Tauri 默认的 `/SOLID lzma`）见
+`packages/desktop-tauri/src-tauri/nsis/README.md`。
 
 `tauri.conf.json` 关键字段：
 
@@ -538,8 +553,13 @@ steps:
 {
   "productName": "biliLive-tools",
   "identifier": "com.skyland.bililivetools",
+  "build": {
+    // native:check 必须再跑一次：bundle 单独执行时不走 beforeBuildCommand
+    "beforeBundleCommand": "pnpm bin:check && pnpm native:check && pnpm nsis:prepare",
+  },
   "bundle": {
     "externalBin": ["binaries/node"],
+    // 不再直接 File 进安装包，而是作为 prepare-nsis.js 的 payload 清单
     "resources": {
       "cli/": "cli/",
       "bin/": "bin/",

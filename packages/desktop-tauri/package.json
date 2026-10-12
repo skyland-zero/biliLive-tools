@@ -8,7 +8,15 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
+    "build:fast": "tauri build --config '{\"bundle\":{\"windows\":{\"nsis\":{\"compression\":\"zlib\"}}}}'",
+    "build:nobundle": "tauri build --no-bundle",
     "tauri": "tauri",
+    "bin:ensure": "node scripts/check-bin.js",
+    "bin:check": "node scripts/check-bin.js --strict",
+    "native:check": "node scripts/ensure-native-abi.js",
+    "nsis:prepare": "node scripts/prepare-nsis.js",
+    "nsis:sync": "node scripts/sync-nsis-template.js",
+    "nsis:check": "node scripts/sync-nsis-template.js --check",
     "vite:dev": "vite",
     "vite:build": "vite build"
   },
@@ -20,6 +28,7 @@
     "path-unified": "^0.2.0"
   },
   "devDependencies": {
+    "7zip-bin": "^5.2.0",
     "@biliLive-tools/types": "workspace:*",
     "@tauri-apps/cli": "^2.12.2",
     "@vitejs/plugin-vue": "^6.0.1",

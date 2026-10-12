@@ -10,6 +10,8 @@ lib
 packages/desktop-tauri/src-tauri/target
 packages/desktop-tauri/src-tauri/gen
 packages/desktop-tauri/src-tauri/binaries
+# 由 scripts/prepare-nsis.js 生成（含机器相关的绝对路径）
+packages/desktop-tauri/src-tauri/nsis/installer.generated.nsi
 
 *.db
 *.db-wal

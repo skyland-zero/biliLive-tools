@@ -1,0 +1,33 @@
+nsis7z NSIS plug-in
+===================
+
+File:    x86-unicode/nsis7z.dll
+SHA-256: b393f05e8ff919ef071181050e1873c9a776e1a0ae8329aefff7007d0cadf592
+Size:    434176 bytes
+
+用途
+----
+在 NSIS 安装包中解压预先用 7-Zip 压好的 `payload.7z`（LZMA2，多线程），
+替代 NSIS 自带的单线程 LZMA1，从而显著缩短安装时间。详见 ../../README.md。
+
+来源
+----
+取自 electron-builder 的 nsis-resources 发行包（与 electron-builder 打包 Electron 应用时
+使用的完全是同一个二进制）：
+
+  https://github.com/electron-userland/electron-builder-binaries/releases/tag/nsis-resources-3.4.1
+  plugins/x86-unicode/nsis7z.dll
+
+上游项目：
+
+  https://nsis.sourceforge.io/Nsis7z_plug-in
+
+许可
+----
+nsis7z 基于 7-Zip 的 LZMA SDK，其核心代码为公有领域（public domain），
+可自由复制、修改、分发，包括商业用途：
+
+  https://www.7-zip.org/sdk.html
+
+上游发行包中可能同时包含少量以其他条款（如 LGPL）发布的文件，使用前请以
+上游 `License.txt` 为准。本仓库只分发其中的 `nsis7z.dll` 这一个文件。
