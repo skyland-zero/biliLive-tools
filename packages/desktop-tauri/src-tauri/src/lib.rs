@@ -19,6 +19,18 @@ pub struct AppState {
     pub started_at: std::time::Instant,
 }
 
+/// 应用标题：开发态（`tauri dev`）额外带上 `[DEV]`，避免和安装版混在一起分不清。
+///
+/// `tauri::is_dev()` 等价于「没有启用 tauri 的 `custom-protocol` feature」，
+/// 而 `tauri build`（含 NSIS 安装包）会启用它，所以安装版返回 `false`，只有 dev 运行为 `true`。
+pub(crate) fn app_title() -> &'static str {
+    if tauri::is_dev() {
+        "biliLive-tools [DEV]"
+    } else {
+        "biliLive-tools"
+    }
+}
+
 /// 读取「关闭到托盘」配置，未配置时默认开启（与 Electron 版 appConfig 默认值一致）
 fn read_close_to_tray(user_data_dir: &Path) -> bool {
     let app_config = config::read_json(&user_data_dir.join("appConfig.json"));
@@ -45,7 +57,7 @@ fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
     let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
     let mut builder = TrayIconBuilder::with_id("main")
-        .tooltip("biliLive-tools")
+        .tooltip(app_title())
         .menu(&menu)
         .show_menu_on_left_click(false)
         .icon_as_template(cfg!(target_os = "macos"))
@@ -123,7 +135,7 @@ pub fn run() {
 
             // 立即创建窗口，渲染层会等待 sidecar 就绪后再挂载
             let window = WebviewWindowBuilder::new(app.handle(), "main", WebviewUrl::App("index.html".into()))
-                .title("biliLive-tools")
+                .title(app_title())
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(600.0, 400.0)
                 .center()

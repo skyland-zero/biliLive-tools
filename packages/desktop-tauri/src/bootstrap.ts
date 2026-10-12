@@ -10,6 +10,12 @@ import { installWindowApi } from "./adapters/tauri";
 
 installWindowApi();
 
+// 开发态（tauri dev）在窗口标题上标注 [DEV]，避免和安装版混淆；
+// 与 Rust 侧 `app_title()` 保持一致（dev 由 vite 注入 DEV=true，打包时为 false）
+if (import.meta.env.DEV) {
+  document.title = "biliLive-tools [DEV]";
+}
+
 // 桌面模式下 renderer 不会走 main.ts 的 isWeb 注入分支，这里补齐 window.path
 // @ts-ignore
 window.path = path;

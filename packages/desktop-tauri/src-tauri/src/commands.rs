@@ -282,7 +282,7 @@ pub fn create_sub_window(app: AppHandle, opts: SubWindowOptions) -> Result<bool,
     let label = format!("sub-{}", SUB_WINDOW_COUNTER.fetch_add(1, Ordering::SeqCst));
     let url = WebviewUrl::App(format!("index.html#/{route}").into());
     let mut builder = WebviewWindowBuilder::new(&app, &label, url)
-        .title("biliLive-tools")
+        .title(crate::app_title())
         .inner_size(1200.0, 800.0);
 
     if opts.hide_aside.unwrap_or(false) {

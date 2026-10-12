@@ -77,6 +77,7 @@ fn start_sidecar(app: &AppHandle, user_data: &Path) -> Result<(), String> {
         "logPath": user_data.join("main.log").to_string_lossy(),
     });
     config::write_json(&cli_config_path, &cli_config)?;
+    warn_missing_bins(user_data, &cli_config);
 
     // 4. 启动 node sidecar
     let node = node_path(app);
@@ -93,6 +94,10 @@ fn start_sidecar(app: &AppHandle, user_data: &Path) -> Result<(), String> {
 
     let mut command = Command::new(&node);
     command
+        // `openai@4 -> node-fetch@2 -> whatwg-url@5 -> tr46@0.0.3` 里 `require("punycode")`
+        // 会触发 DEP0040，是 2016 年的老包引入的纯警告，功能无影响。
+        // 这里精准静音，避免污染 sidecar.log（Electron 版同样有这条）。
+        .arg("--disable-warning=DEP0040")
         .arg(&cli)
         .arg("server")
         .arg("--config")
@@ -253,22 +258,75 @@ fn cli_entry_path(app: &AppHandle) -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("cli/index.cjs"))
 }
 
-/// 外部二进制路径：开发态用 PATH 中的可执行文件，打包后走 resources/bin
+/// 外部二进制的候选目录，按优先级排列：
+/// 1. 环境变量 `BILILIVE_TAURI_BIN_DIR`（调试/自定义安装）
+/// 2. 打包后的 `<resource>/bin`
+/// 3. 开发态仓库内的 `packages/app/resources/bin`（与 Electron 版共用 install-bin.js 的产物）
+fn bin_dirs(app: &AppHandle) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    if let Ok(dir) = std::env::var("BILILIVE_TAURI_BIN_DIR") {
+        dirs.push(PathBuf::from(dir));
+    }
+    if let Ok(dir) = app.path().resource_dir() {
+        dirs.push(config::simplify_path(dir).join("bin"));
+    }
+    if cfg!(debug_assertions) {
+        dirs.push(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("..")
+                .join("app")
+                .join("resources")
+                .join("bin"),
+        );
+    }
+    dirs
+}
+
+/// 外部二进制路径：优先取候选目录中真实存在的文件，都没有时退回文件名（依赖系统 PATH）
 fn bin_path(app: &AppHandle, name: &str) -> String {
     let file_name = if cfg!(windows) {
         format!("{name}.exe")
     } else {
         name.to_string()
     };
-    if !cfg!(debug_assertions) {
-        if let Ok(dir) = app.path().resource_dir() {
-            let candidate = config::simplify_path(dir.join("bin").join(&file_name));
-            if candidate.exists() {
-                return candidate.to_string_lossy().into_owned();
-            }
+    for dir in bin_dirs(app) {
+        let candidate = config::simplify_path(dir.join(&file_name));
+        if candidate.is_file() {
+            return candidate.to_string_lossy().into_owned();
         }
     }
     file_name
+}
+
+/// 启动时检测外部二进制是否缺失，缺失时在 tauri.log 中给出明确提示
+fn warn_missing_bins(user_data: &Path, cli_config: &serde_json::Value) {
+    let keys = [
+        "ffmpegPath",
+        "ffprobePath",
+        "mesioPath",
+        "bililiveRecorderPath",
+        "audiowaveformPath",
+        "danmakuFactoryPath",
+    ];
+    let missing: Vec<String> = keys
+        .iter()
+        .filter_map(|key| {
+            let path = cli_config.get(*key)?.as_str()?;
+            // 相对路径代表「交给系统 PATH 解析」，不做存在性判断
+            (Path::new(path).is_absolute() && !Path::new(path).is_file())
+                .then(|| format!("{key}={path}"))
+        })
+        .collect();
+    if missing.is_empty() {
+        return;
+    }
+    let message = format!(
+        "外部工具缺失（将退回系统 PATH）：{}；开发态请先运行 pnpm run install:bin，或设置 BILILIVE_TAURI_BIN_DIR 指向所在目录",
+        missing.join(", ")
+    );
+    config::log_line(user_data, &message);
+    eprintln!("{message}");
 }
 
 pub fn stop(app: &AppHandle) {
