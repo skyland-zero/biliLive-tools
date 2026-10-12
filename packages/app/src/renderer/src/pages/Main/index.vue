@@ -6,34 +6,101 @@
         bordered
         collapse-mode="width"
         :collapsed-width="64"
-        :width="160"
+        :width="208"
         :collapsed="collapsed"
-        show-trigger
-        @collapse="collapsed = true"
-        @expand="collapsed = false"
+        :show-trigger="false"
+        :native-scrollbar="false"
+        class="app-sider"
       >
-        <n-menu
-          v-model:value="activeKey"
-          v-model:expanded-keys="expandedMenuKeys"
-          class="main-menu"
-          :style="{ marginBottom: `${footerMenuOptions.length * 50}px` }"
-          :collapsed="collapsed"
-          :collapsed-width="64"
-          :collapsed-icon-size="22"
-          :options="menuOptions"
-        />
+        <div class="sider-wrapper">
+          <div class="sider-header" :class="{ collapsed }">
+            <template v-if="!collapsed">
+              <div class="sider-brand-group">
+                <div
+                  class="brand-icon-box"
+                  title="直播录制"
+                  @click="router.push({ name: 'recorder' })"
+                >
+                  <n-icon :size="16" color="#ffffff">
+                    <LiveTvRound />
+                  </n-icon>
+                </div>
+                <div
+                  class="status-pill"
+                  :class="{ warning: quenuStore.runningTaskNum > 0 }"
+                  :title="
+                    quenuStore.runningTaskNum > 0
+                      ? `当前有 ${quenuStore.runningTaskNum} 个任务在运行，点击查看队列`
+                      : '系统运行正常，点击进入直播间'
+                  "
+                  @click="handleStatusClick"
+                >
+                  <span class="status-dot"></span>
+                  <span class="status-text">
+                    {{
+                      quenuStore.runningTaskNum > 0
+                        ? `任务中 (${quenuStore.runningTaskNum})`
+                        : "系统就绪"
+                    }}
+                  </span>
+                </div>
+              </div>
+              <n-button
+                quaternary
+                circle
+                size="small"
+                class="collapse-trigger-btn"
+                title="折叠导航"
+                @click="collapsed = true"
+              >
+                <template #icon>
+                  <n-icon size="16">
+                    <ChevronBackOutline />
+                  </n-icon>
+                </template>
+              </n-button>
+            </template>
+            <template v-else>
+              <div class="collapsed-brand" title="点击展开导航" @click="collapsed = false">
+                <div class="brand-icon-box">
+                  <n-icon :size="18" color="#ffffff">
+                    <LiveTvRound />
+                  </n-icon>
+                </div>
+                <span
+                  class="collapsed-status-pip"
+                  :class="{ warning: quenuStore.runningTaskNum > 0 }"
+                ></span>
+              </div>
+            </template>
+          </div>
 
-        <n-layout-footer position="absolute">
-          <n-menu
-            v-model:value="activeKey"
-            class="footer-menu"
-            :collapsed="collapsed"
-            :collapsed-width="64"
-            :collapsed-icon-size="22"
-            :options="footerMenuOptions"
-            default-expand-all
-          />
-        </n-layout-footer>
+          <div class="sider-menu-body">
+            <n-scrollbar>
+              <n-menu
+                v-model:value="activeKey"
+                v-model:expanded-keys="expandedMenuKeys"
+                class="main-menu"
+                :collapsed="collapsed"
+                :collapsed-width="64"
+                :collapsed-icon-size="20"
+                :options="menuOptions"
+              />
+            </n-scrollbar>
+          </div>
+
+          <div class="sider-footer">
+            <n-menu
+              v-model:value="activeKey"
+              class="footer-menu"
+              :collapsed="collapsed"
+              :collapsed-width="64"
+              :collapsed-icon-size="20"
+              :options="footerMenuOptions"
+              default-expand-all
+            />
+          </div>
+        </div>
       </n-layout-sider>
 
       <n-layout :class="['main-container', route.name, { mobile: isMobile }]">
@@ -78,18 +145,27 @@
       body-content-style="padding: 0; display: flex; flex-direction: column;"
       class="mobile-drawer-content"
     >
-      <n-menu
-        v-model:value="activeKey"
-        v-model:expanded-keys="expandedMenuKeys"
-        class="mobile-main-menu"
-        :options="menuOptions"
-      />
-      <n-menu
-        v-model:value="activeKey"
-        class="mobile-footer-menu"
-        :options="footerMenuOptions"
-        default-expand-all
-      />
+      <div class="mobile-drawer-header">
+        <span class="mobile-drawer-title">biliLive-tools</span>
+      </div>
+      <div class="mobile-drawer-body">
+        <n-scrollbar>
+          <n-menu
+            v-model:value="activeKey"
+            v-model:expanded-keys="expandedMenuKeys"
+            class="mobile-main-menu"
+            :options="menuOptions"
+          />
+        </n-scrollbar>
+      </div>
+      <div class="mobile-drawer-footer">
+        <n-menu
+          v-model:value="activeKey"
+          class="mobile-footer-menu"
+          :options="footerMenuOptions"
+          default-expand-all
+        />
+      </div>
     </n-drawer-content>
   </n-drawer>
   <AppSettingDialog v-model="settingVisible" ref="settingDialogRef"></AppSettingDialog>
@@ -113,6 +189,7 @@ import {
   SettingsOutline as SettingIcon,
   LogOutOutline,
   MenuOutline,
+  ChevronBackOutline,
 } from "@vicons/ionicons5";
 import { DashboardOutlined as DashboardIcon, LiveTvRound } from "@vicons/material";
 import { VideoClip20Regular } from "@vicons/fluent";
@@ -203,6 +280,14 @@ function renderImg(src: string) {
 }
 
 const router = useRouter();
+
+const handleStatusClick = () => {
+  if (quenuStore.runningTaskNum > 0) {
+    router.push({ name: "Queue" });
+  } else {
+    router.push({ name: "recorder" });
+  }
+};
 const footerMenuOptions = computed<MenuOption[]>(() => {
   const menus: MenuOption[] = [
     {
@@ -214,7 +299,7 @@ const footerMenuOptions = computed<MenuOption[]>(() => {
               name: "User",
             },
           },
-          { default: () => "用户" },
+          { default: () => "账号管理" },
         ),
       key: "User",
       icon: renderImg(userInfo.value?.profile?.face || defaultUserAvatar),
@@ -228,7 +313,7 @@ const footerMenuOptions = computed<MenuOption[]>(() => {
               openSetting();
             },
           },
-          { default: () => "设置" },
+          { default: () => "系统设置" },
         ),
       key: "setting",
       icon: renderIcon(SettingIcon),
@@ -245,7 +330,7 @@ const footerMenuOptions = computed<MenuOption[]>(() => {
               logVisible.value = true;
             },
           },
-          { default: () => "日志" },
+          { default: () => "运行日志" },
         ),
       key: "log",
       icon: renderIcon(logSvg),
@@ -261,7 +346,7 @@ const footerMenuOptions = computed<MenuOption[]>(() => {
             name: "About",
           },
         },
-        { default: () => "关于" },
+        { default: () => "关于软件" },
       ),
     key: "About",
     icon: renderIcon(InfoIcon),
@@ -279,7 +364,7 @@ const footerMenuOptions = computed<MenuOption[]>(() => {
               router.push({ name: "Login" });
             },
           },
-          { default: () => "登出" },
+          { default: () => "退出登录" },
         ),
       key: "logout",
       icon: renderIcon(LogOutOutline),
@@ -356,7 +441,7 @@ const menuOptions = computed<MenuOption[]>(() => {
               name: "Home",
             },
           },
-          { default: () => "压制" },
+          { default: () => "视频压制" },
         ),
     },
     {
@@ -375,7 +460,7 @@ const menuOptions = computed<MenuOption[]>(() => {
                 });
               },
             },
-            { default: () => "切片" },
+            { default: () => "视频切片" },
           );
         } else {
           return h(
@@ -385,7 +470,7 @@ const menuOptions = computed<MenuOption[]>(() => {
                 name: "videoCut",
               },
             },
-            { default: () => "切片" },
+            { default: () => "视频切片" },
           );
         }
       },
@@ -400,7 +485,7 @@ const menuOptions = computed<MenuOption[]>(() => {
               name: "Convert2Mp4",
             },
           },
-          { default: () => "转码" },
+          { default: () => "格式转码" },
         ),
     },
     {
@@ -426,7 +511,7 @@ const menuOptions = computed<MenuOption[]>(() => {
               name: "FlvRepair",
             },
           },
-          { default: () => "FLV修复" },
+          { default: () => "FLV 修复" },
         ),
     },
   ];
@@ -454,7 +539,7 @@ const menuOptions = computed<MenuOption[]>(() => {
               name: "Dashboard",
             },
           },
-          { default: () => "看板" },
+          { default: () => "数据看板" },
         ),
       key: "Dashboard",
       icon: renderIcon(DashboardIcon),
@@ -480,7 +565,7 @@ const menuOptions = computed<MenuOption[]>(() => {
       children: videoProcessingSubMenus,
     },
     {
-      label: () => h("span", "工具"),
+      label: () => h("span", "实用工具"),
       key: "tools",
       icon: renderIcon(BuildIcon),
       children: toolsSubMenus,
@@ -496,7 +581,7 @@ const menuOptions = computed<MenuOption[]>(() => {
               name: "FileBrowser",
             },
           },
-          { default: () => "文件浏览器" },
+          { default: () => "文件浏览" },
         ),
       key: "FileBrowser",
       icon: renderIcon(FolderIcon),
@@ -620,24 +705,203 @@ initChanglog();
   color: var(--text-primary);
 }
 
-.main-menu {
-  margin-bottom: 100px;
-}
-
-.footer-menu {
-  position: relative;
-  z-index: 10;
+.app-sider {
+  height: 100%;
   background: var(--bg-primary);
-  border-top: 1px solid var(--border-secondary);
+
+  & > .n-layout-sider-scroll-container {
+    height: 100%;
+    overflow: hidden !important;
+  }
 }
 
-.mobile-main-menu {
-  flex: 1 0 auto;
+.sider-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
-.mobile-footer-menu {
+.sider-header {
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 0 14px;
+  border-bottom: 1px solid var(--border-secondary);
+  flex-shrink: 0;
+
+  &.collapsed {
+    padding: 0;
+    justify-content: center;
+  }
+
+  .collapse-trigger-btn {
+    color: var(--text-secondary);
+    &:hover {
+      color: var(--text-primary);
+    }
+  }
+}
+
+.sider-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #18a058 0%, #36ad6a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(24, 160, 88, 0.25);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: scale(1.05);
+  }
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+
+  &:hover {
+    border-color: var(--color-primary);
+    transform: translateY(-1px);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(24, 160, 88, 0.2);
+    animation: status-pulse 2s infinite ease-in-out;
+  }
+
+  .status-text {
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 500;
+  }
+
+  &.warning {
+    border-color: rgba(212, 136, 6, 0.3);
+    background: rgba(212, 136, 6, 0.08);
+
+    .status-dot {
+      background-color: var(--color-warning);
+      box-shadow: 0 0 0 2px rgba(212, 136, 6, 0.25);
+    }
+    .status-text {
+      color: var(--color-warning);
+      font-weight: 600;
+    }
+  }
+}
+
+.collapsed-brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  .brand-icon-box {
+    width: 32px;
+    height: 32px;
+  }
+
+  .collapsed-status-pip {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-primary);
+    border: 2px solid var(--bg-primary);
+
+    &.warning {
+      background-color: var(--color-warning);
+    }
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+}
+
+.sider-menu-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+
+  .main-menu {
+    padding: 6px 0;
+  }
+}
+
+.sider-footer {
   flex-shrink: 0;
   border-top: 1px solid var(--border-secondary);
+  background: var(--bg-primary);
+  padding: 4px 0;
+
+  .footer-menu {
+    border-top: none;
+  }
+}
+
+.mobile-drawer-header {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border-secondary);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.mobile-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mobile-drawer-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border-secondary);
+  background: var(--bg-primary);
+  padding: 4px 0;
 }
 
 .mobile-drawer-content {

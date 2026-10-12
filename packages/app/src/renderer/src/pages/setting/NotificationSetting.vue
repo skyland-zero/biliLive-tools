@@ -401,10 +401,7 @@ const notifyTest = async () => {
     });
   } catch (error: any) {
     const errorMsg =
-      error?.response?.data?.message ||
-      error?.response?.data ||
-      error?.message ||
-      String(error);
+      error?.response?.data?.message || error?.response?.data || error?.message || String(error);
     notice.error({
       title: "发送测试失败",
       content: String(errorMsg),
