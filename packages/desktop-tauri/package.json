@@ -2,6 +2,7 @@
   "name": "bililive-desktop",
   "version": "3.22.2",
   "description": "biliLive-tools Tauri 桌面端",
+  "author": "skyland",
   "private": true,
   "type": "module",
   "scripts": {

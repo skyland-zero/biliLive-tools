@@ -537,7 +537,7 @@ steps:
 ```jsonc
 {
   "productName": "biliLive-tools",
-  "identifier": "com.renmu123.bililivetools",
+  "identifier": "com.skyland.bililivetools",
   "bundle": {
     "externalBin": ["binaries/node"],
     "resources": {

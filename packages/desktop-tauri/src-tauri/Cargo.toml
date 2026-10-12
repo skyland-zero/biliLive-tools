@@ -2,7 +2,7 @@
 name = "bililive-desktop"
 version = "3.22.2"
 description = "biliLive-tools Tauri 桌面端"
-authors = ["renmu123"]
+authors = ["skyland"]
 license = "GPL-3.0"
 edition = "2021"
 
