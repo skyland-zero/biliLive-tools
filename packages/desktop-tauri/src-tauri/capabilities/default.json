@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "主窗口/子窗口的能力：核心 API + 文件对话框",
+  "windows": ["main", "sub-*"],
+  "permissions": ["core:default", "dialog:default"]
+}

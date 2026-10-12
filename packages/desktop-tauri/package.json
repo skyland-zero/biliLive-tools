@@ -1,0 +1,31 @@
+{
+  "name": "bililive-desktop",
+  "version": "3.22.2",
+  "description": "biliLive-tools Tauri 桌面端",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri",
+    "vite:dev": "vite",
+    "vite:build": "vite build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.3",
+    "@tauri-apps/plugin-dialog": "^2.8.2",
+    "@tauri-apps/plugin-opener": "^2.7.1",
+    "@tauri-apps/plugin-os": "^2.4.0",
+    "path-unified": "^0.2.0"
+  },
+  "devDependencies": {
+    "@biliLive-tools/types": "workspace:*",
+    "@tauri-apps/cli": "^2.12.2",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "naive-ui": "^2.44.1",
+    "unplugin-auto-import": "^20.2.0",
+    "unplugin-vue-components": "^30.0.0",
+    "vite": "^7.1.10",
+    "vue": "^3.5.13"
+  }
+}

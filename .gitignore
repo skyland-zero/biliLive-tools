@@ -7,6 +7,10 @@ cookies.json
 tsconfig.tsbuildinfo
 lib
 
+packages/desktop-tauri/src-tauri/target
+packages/desktop-tauri/src-tauri/gen
+packages/desktop-tauri/src-tauri/binaries
+
 *.db
 *.db-wal
 *.db-shm

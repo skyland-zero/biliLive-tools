@@ -1,0 +1,26 @@
+[package]
+name = "bililive-desktop"
+version = "3.22.2"
+description = "biliLive-tools Tauri 桌面端"
+authors = ["renmu123"]
+license = "GPL-3.0"
+edition = "2021"
+
+[lib]
+name = "bililive_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+ureq = { version = "2", features = ["json"] }
+semver = "1"
+rand = "0.8"
+percent-encoding = "2"
