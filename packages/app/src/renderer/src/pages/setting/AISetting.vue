@@ -24,7 +24,11 @@
                   </n-tag>
                   <n-text strong>{{ vendor.name }}</n-text>
                 </div>
-                <div class="vendor-info"></div>
+                <div class="vendor-info">
+                  <n-text v-if="vendor.baseURL" depth="3" style="font-size: 12px">
+                    {{ vendor.baseURL }}
+                  </n-text>
+                </div>
                 <div class="vendor-actions">
                   <n-button size="small" @click="editVendor(vendor.id)">编辑</n-button>
                   <n-button size="small" type="error" @click="deleteVendor(vendor.id)"
@@ -200,6 +204,77 @@
               </n-form>
             </n-collapse-item>
           </n-collapse>
+          <n-collapse style="margin-top: 10px">
+            <n-collapse-item title="章节生成" name="chapterRecognize">
+              <n-form label-placement="left" :label-width="120">
+                <n-form-item label="ASR模型">
+                  <n-select
+                    v-model:value="config.ai.chapterRecognize.asrModelId"
+                    :options="getModelOptionsByTag('asr')"
+                    placeholder="默认为空时使用字幕识别的模型"
+                    clearable
+                  />
+                </n-form-item>
+                <n-form-item label="LLM模型">
+                  <n-select
+                    v-model:value="config.ai.chapterRecognize.llmModelId"
+                    :options="getModelOptionsByTag('llm')"
+                    placeholder="未选择时使用列表中的第一个LLM模型"
+                    clearable
+                  />
+                </n-form-item>
+                <n-form-item label="提示词">
+                  <n-input
+                    v-model:value="config.ai.chapterRecognize.prompt"
+                    type="textarea"
+                    :rows="10"
+                    placeholder="请输入用于整理章节的提示词"
+                  />
+                </n-form-item>
+                <n-form-item>
+                  <template #label>
+                    <Tip
+                      text="单次文本上限"
+                      tip="超过这个长度的转写文本会被分块分析后再汇总。模型上下文很大时可以调大（如 1M 上下文的模型可调到 100000），整场直播一次处理完"
+                    ></Tip>
+                  </template>
+                  <n-input-number
+                    v-model:value="config.ai.chapterRecognize.maxChunkChars"
+                    :min="2000"
+                    :step="1000"
+                  >
+                    <template #suffix>字</template>
+                  </n-input-number>
+                </n-form-item>
+                <n-form-item label="章节数量上限">
+                  <n-input-number
+                    v-model:value="config.ai.chapterRecognize.maxChapters"
+                    :min="2"
+                    :max="60"
+                  />
+                </n-form-item>
+                <n-form-item label="章节最小间隔">
+                  <n-input-number
+                    v-model:value="config.ai.chapterRecognize.minChapterInterval"
+                    :min="5"
+                    :max="3600"
+                  >
+                    <template #suffix>秒</template>
+                  </n-input-number>
+                </n-form-item>
+                <n-form-item label="标题字数上限">
+                  <n-input-number
+                    v-model:value="config.ai.chapterRecognize.maxTitleLength"
+                    :min="2"
+                    :max="40"
+                  />
+                </n-form-item>
+                <n-form-item label="时间轴含高能点">
+                  <n-switch v-model:value="config.ai.chapterRecognize.timelineWithHighlight" />
+                </n-form-item>
+              </n-form>
+            </n-collapse-item>
+          </n-collapse>
         </n-tab-pane>
       </n-tabs>
     </n-form>
@@ -363,7 +438,7 @@ const getModelOptionsByTag = (tag: "llm" | "asr") => {
 const providerOptions = [
   { label: "FFmpeg", value: "ffmpeg" },
   { label: "阿里云", value: "aliyun" },
-  { label: "OpenAI", value: "openai" },
+  { label: "OpenAI 兼容", value: "openai" },
   // { label: "百度", value: "baidu" },
 ];
 

@@ -840,6 +840,25 @@ export interface AppConfig {
     subtitleRecognize: {
       modelId?: string;
     };
+    // 章节生成
+    chapterRecognize: {
+      /** ASR 模型，为空时使用字幕识别的模型 */
+      asrModelId?: string;
+      /** LLM 模型 */
+      llmModelId?: string;
+      /** 提示词 */
+      prompt: string;
+      /** 单次 LLM 调用的文本上限（字符），模型上下文大的可以调大 */
+      maxChunkChars: number;
+      /** 章节数量上限 */
+      maxChapters: number;
+      /** 相邻章节最小间隔（秒） */
+      minChapterInterval: number;
+      /** 标题最大字数 */
+      maxTitleLength: number;
+      /** 置顶评论时间轴是否包含弹幕高能点 */
+      timelineWithHighlight: boolean;
+    };
   };
   /** 最大任务数 */
   task: {
@@ -849,6 +868,7 @@ export interface AppConfig {
     biliUploadMaxNum: number;
     biliDownloadMaxNum: number;
     syncMaxNum: number;
+    chapterMaxNum: number;
   };
   /** 上传配置 */
   biliUpload: {

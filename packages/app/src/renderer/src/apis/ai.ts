@@ -52,11 +52,29 @@ const subtitleRecognize = async (
   return res.data;
 };
 
+const chapterGenerate = async (params: {
+  videoFile: string;
+  danmuFile?: string;
+  maxChapters?: number;
+  minChapterInterval?: number;
+  maxTitleLength?: number;
+  timelineWithHighlight?: boolean;
+  asrModelId?: string;
+  llmModelId?: string;
+  prompt?: string;
+}): Promise<{
+  taskId: string;
+}> => {
+  const res = await request.post("/ai/chapter", params);
+  return res.data;
+};
+
 const ai = {
   asrRecognize,
   llm,
   songRecognize,
   subtitleRecognize,
+  chapterGenerate,
 };
 
 export default ai;

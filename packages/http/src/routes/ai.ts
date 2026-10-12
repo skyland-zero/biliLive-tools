@@ -4,6 +4,7 @@ import { songRecognize } from "@biliLive-tools/shared/musicDetector/index.js";
 import { subtitleRecognize } from "@biliLive-tools/shared/musicDetector/subtitle.js";
 import { getTempPath, uuid } from "@biliLive-tools/shared/utils/index.js";
 import { addExtractAudioTask } from "@biliLive-tools/shared/task/video.js";
+import { addChapterTask } from "@biliLive-tools/shared/task/chapter.js";
 import { appConfig } from "@biliLive-tools/shared/config.js";
 
 const router = new Router({
@@ -82,6 +83,50 @@ router.post("/song-recognize", async (ctx) => {
   fs.remove(outputFile);
 
   ctx.body = result;
+});
+
+/**
+ * 生成章节与时间轴（异步任务，结果在任务的 extra 中）
+ */
+router.post("/chapter", async (ctx) => {
+  const data = ctx.request.body as {
+    /** 完整视频文件路径 */
+    videoFile: string;
+    /** 弹幕 XML 文件路径 */
+    danmuFile?: string;
+    maxChapters?: number;
+    minChapterInterval?: number;
+    maxTitleLength?: number;
+    /** 单次 LLM 调用的文本上限（字符） */
+    maxChunkChars?: number;
+    timelineWithHighlight?: boolean;
+    asrModelId?: string;
+    llmModelId?: string;
+    prompt?: string;
+  };
+
+  if (!data.videoFile) {
+    ctx.status = 400;
+    ctx.body = {
+      error: "参数错误，必须包含 videoFile 字段",
+    };
+    return;
+  }
+
+  const task = addChapterTask({
+    videoFile: data.videoFile,
+    danmuFile: data.danmuFile,
+    maxChapters: data.maxChapters,
+    minChapterInterval: data.minChapterInterval,
+    maxTitleLength: data.maxTitleLength,
+    maxChunkChars: data.maxChunkChars,
+    timelineWithHighlight: data.timelineWithHighlight,
+    asrModelId: data.asrModelId,
+    llmModelId: data.llmModelId,
+    prompt: data.prompt,
+  });
+
+  ctx.body = { taskId: task.taskId };
 });
 
 router.post("/subtitle", async (ctx) => {

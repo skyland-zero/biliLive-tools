@@ -508,6 +508,7 @@ const config: Ref<AppConfig> = ref({
     biliUploadMaxNum: -1,
     biliDownloadMaxNum: -1,
     syncMaxNum: 3,
+    chapterMaxNum: 1,
   },
   sync: {
     syncConfigs: [],

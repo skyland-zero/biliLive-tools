@@ -33,6 +33,7 @@ export default defineConfig({
             { text: "文件同步", link: "/api/sync" },
             { text: "用户管理", link: "/api/user" },
             { text: "视频解析", link: "/api/video" },
+            { text: "AI", link: "/api/ai" },
             // { text: "任务", link: "/api/task" },
             // { text: "预设", link: "/api/preset" },
             { text: "其他", link: "/api/other" },

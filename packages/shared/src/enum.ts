@@ -14,6 +14,7 @@ export enum TaskType {
   subtitleTranslate = "subtitleTranslate",
   sync = "sync",
   flvRepair = "flvRepair",
+  chapter = "chapter",
 }
 
 export enum NotificationType {
@@ -181,6 +182,7 @@ export const APP_DEFAULT_CONFIG: AppConfig = {
     biliUploadMaxNum: 2,
     biliDownloadMaxNum: 2,
     syncMaxNum: 3,
+    chapterMaxNum: 1,
   },
   videoCut: {
     autoSave: true,
@@ -273,6 +275,13 @@ export const APP_DEFAULT_CONFIG: AppConfig = {
         provider: "aliyun",
         apiKey: "",
       },
+      {
+        id: "7f1a5c3e-9b42-4d18-8a67-3e6c2b9d5f40",
+        name: "Command Code",
+        provider: "openai",
+        apiKey: "",
+        baseURL: "https://api.commandcode.ai/provider/v1",
+      },
     ],
     models: [
       {
@@ -288,6 +297,14 @@ export const APP_DEFAULT_CONFIG: AppConfig = {
         modelId: "ca277547-fabd-462b-99d2-cf76f56002e6",
         modelName: "qwen3.7-plus",
         remark: "通用大模型",
+        tags: ["llm"],
+        config: {},
+      },
+      {
+        vendorId: "7f1a5c3e-9b42-4d18-8a67-3e6c2b9d5f40",
+        modelId: "e2b7c8d1-4f63-4a09-b752-8d1e6f3a9c58",
+        modelName: "deepseek/deepseek-v4.1-flash",
+        remark: "Command Code，1M 上下文",
         tags: ["llm"],
         config: {},
       },
@@ -345,6 +362,28 @@ export const APP_DEFAULT_CONFIG: AppConfig = {
     },
     subtitleRecognize: {
       modelId: "bcut",
+    },
+    chapterRecognize: {
+      asrModelId: "",
+      // 默认使用内置的 Command Code 模型，填上 provider key 即可用
+      llmModelId: "e2b7c8d1-4f63-4a09-b752-8d1e6f3a9c58",
+      prompt: `# Role
+你是一名专业的直播录像内容编辑，负责把直播录像整理成 B站章节目录和置顶评论时间轴。
+
+# 任务
+根据提供的内容（候选话题、弹幕高能点、付费互动事件），整理出最终的视频章节。
+
+# 要求
+1. 章节标题要像观众熟悉的直播切片标题，简短有信息量，尽量使用直播中的原话、梗或弹幕里的说法。
+2. 优先保留话题切换明显、弹幕爆发、付费互动的位置作为章节分界。
+3. 保留直播中的重大事件、名场面、连麦、游戏对局、歌曲等节点。
+4. 不要编造素材中没有的内容。
+5. 输出 JSON：{"chapters":[{"time":"hh:mm:ss","title":"标题"}]}，除 JSON 外不要输出任何内容。`,
+      maxChunkChars: 6000,
+      maxChapters: 20,
+      minChapterInterval: 60,
+      maxTitleLength: 16,
+      timelineWithHighlight: true,
     },
   },
   biliUpload: {

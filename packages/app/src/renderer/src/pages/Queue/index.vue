@@ -126,6 +126,10 @@ const typeOptions = ref([
     value: TaskType.sync,
     label: "同步",
   },
+  {
+    value: TaskType.chapter,
+    label: "章节生成",
+  },
 ]);
 
 const selectedStatus = ref<string[]>([

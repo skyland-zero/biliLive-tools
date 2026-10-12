@@ -122,6 +122,7 @@
               'Convert2Mp4',
               'VideoMerge',
               'FlvRepair',
+              'Chapter',
               'BiliDownload',
               'recorder',
               'videoCut',
@@ -508,6 +509,19 @@ const menuOptions = computed<MenuOption[]>(() => {
             },
           },
           { default: () => "FLV 修复" },
+        ),
+    },
+    {
+      key: "Chapter",
+      label: () =>
+        h(
+          RouterLink,
+          {
+            to: {
+              name: "Chapter",
+            },
+          },
+          { default: () => "章节生成" },
         ),
     },
   ];

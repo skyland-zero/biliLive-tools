@@ -66,6 +66,20 @@ See [the reference guide](https://docs.irenmu.com/api/video.md) for details.
 - 视频切割(`/task/cut`)
 - 字幕识别(`/task/subtitle`)
 
+### 章节生成
+
+See [the reference guide](https://docs.irenmu.com/api/ai.md) for details.
+
+输入完整的录像文件和对应的弹幕 XML 文件，生成 B站章节目录和置顶评论时间轴。
+
+- 创建任务(`POST /ai/chapter`)，参数为 `videoFile`、`danmuFile`，返回 `taskId`
+- 轮询(`GET /task/:id`)，任务类型为 `chapter`，完成后结果在 `extra` 中：
+  - `extra.chapterText`：B站章节目录文本
+  - `extra.timelineText`：置顶评论文本
+  - `extra.chapters`：结构化章节数据
+
+注意：该功能**只生成文本**，不会写入 B 站，不要把生成结果用于投稿接口去设置章节。
+
 ### 下载相关
 
 See [the reference guide](https://docs.irenmu.com/api/download.md) for details.
@@ -109,6 +123,10 @@ See [the reference guide](https://docs.irenmu.com/api/config.md) for details.
 最后上传调用 `/bili/upload`
 
 ### 字幕识别
+
+### 生成章节
+
+用户给出录像文件和弹幕文件路径时，调用 `POST /ai/chapter` 创建任务，然后每隔 10 秒轮询一次 `GET /task/:id`，直到 `status` 为 `completed`，将 `extra.chapterText` 和 `extra.timelineText` 返回给用户。长视频的语音识别可能耗时很久，不要频繁轮询。
 
 ### 字幕压制
 

@@ -12,7 +12,7 @@
 
 | 参数名   | 类型   | 必填 | 说明                                                                                             |
 | -------- | ------ | ---- | ------------------------------------------------------------------------------------------------ |
-| type     | string | 否   | 任务类型筛选,可选值: `ffmpeg`、`danmu`、`bili`、`biliUpload`、`biliDownload`、`douyuDownload` 等 |
+| type     | string | 否   | 任务类型筛选,可选值: `ffmpeg`、`danmu`、`bili`、`biliUpload`、`biliDownload`、`douyuDownload`、`sync`、`chapter` 等 |
 | status   | string | 否   | 任务状态筛选,例如: `waiting`、`running`、`paused`、`completed`、`error`                          |
 | page     | number | 否   | 页码,从 1 开始。不传时默认返回第 1 页                                                            |
 | pageSize | number | 否   | 每页条数。不传时默认返回当前筛选结果的全部数据                                                   |

@@ -81,6 +81,14 @@ const router = createRouter({
           },
         },
         {
+          path: "/chapter",
+          name: "Chapter",
+          component: () => import("../pages/Tools/pages/Chapter/index.vue"),
+          meta: {
+            title: "章节生成",
+          },
+        },
+        {
           path: "/biliDownload",
           name: "BiliDownload",
           component: () => import("../pages/Tools/pages/Video/index.vue"),

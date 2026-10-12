@@ -53,6 +53,7 @@ export class TaskQueue {
       [TaskType.biliUpload]: "biliUploadMaxNum",
       [TaskType.biliDownload]: "biliDownloadMaxNum",
       [TaskType.sync]: "syncMaxNum",
+      [TaskType.chapter]: "chapterMaxNum",
     };
     const config = this.appConfig.getAll();
     const maxNum = config?.task?.[typeMap[task.type]] ?? 0;
