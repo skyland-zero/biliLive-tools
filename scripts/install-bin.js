@@ -1,17 +1,40 @@
-// import { fileURLToPath } from "node:url";
 import fs from "fs-extra";
 import path from "node:path";
-import download from "download";
+import { fileURLToPath } from "node:url";
 import { SingleBar } from "cli-progress";
 import JSZip from "jszip";
+
+import { downloadWithProxy } from "./lib/download.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * 这些文件在运行时不读：
+ *   *.pdb  .NET 调试符号（BililiveRecorder 带了一堆）
+ *   *.xml  .NET 文档注释，只给 IDE 提示用
+ *   *.md   说明文档
+ * 目录会被整包打进安装包（Tauri 的 payload.7z / Electron 的 asar），实测能省 ~2.7MB。
+ */
+const UNUSED_FILE_PATTERNS = [/\.pdb$/i, /\.xml$/i, /\.md$/i];
+
+/** 许可证文件不能删（部分包的许可证就叫 LICENSE.md） */
+const LICENSE_FILE = /^(licen[cs]e|copying|notice)/i;
+
+const isUnusedFile = (filename) =>
+  !LICENSE_FILE.test(filename) && UNUSED_FILE_PATTERNS.some((pattern) => pattern.test(filename));
 
 async function unzip(zipFile, destination) {
   const zip = new JSZip();
   const data = await zip.loadAsync(fs.readFileSync(zipFile));
+  let skipped = 0;
   await Promise.all(
     Object.keys(data.files).map(async (filename) => {
       const file = data.files[filename];
       if (!file.dir) {
+        if (isUnusedFile(filename)) {
+          skipped += 1;
+          return;
+        }
         const content = await file.async("nodebuffer");
         const filePath = path.join(destination, filename);
         fs.ensureDirSync(path.dirname(filePath));
@@ -22,11 +45,35 @@ async function unzip(zipFile, destination) {
       }
     }),
   );
-  console.log("解压成功");
+  console.log(skipped > 0 ? `解压成功（跳过 ${skipped} 个运行时不需要的文件）` : "解压成功");
+}
+
+/**
+ * 清掉历史遗留的 *.pdb / *.xml / *.md。
+ *
+ * 这些文件以前会被解压到 resources/bin 里，然后整目录打进安装包；
+ * 上面的 unzip 已经不再写入它们了，但本地已经存在的旧目录需要清一次。
+ */
+function removeUnusedBinFiles() {
+  const binDir = path.resolve(__dirname, "../packages/app/resources/bin");
+  if (!fs.existsSync(binDir)) {
+    return;
+  }
+  let removed = 0;
+  for (const name of fs.readdirSync(binDir)) {
+    const file = path.join(binDir, name);
+    if (fs.statSync(file).isFile() && isUnusedFile(name)) {
+      removed += fs.statSync(file).size;
+      fs.rmSync(file);
+    }
+  }
+  if (removed > 0) {
+    console.log(`清理 resources/bin 里用不到的文件：${(removed / 1024 / 1024).toFixed(1)}MB`);
+  }
 }
 
 async function downloadFile(url, desc, options = {}) {
-  const downloader = download(url, desc, options);
+  const downloader = downloadWithProxy(url, desc, options);
   const progressBar = new SingleBar({
     format: "下载进度 |{bar}| {percentage}% | ETA: {eta}s",
     barCompleteChar: "\u2588",
@@ -188,6 +235,7 @@ async function downloadBin() {
   await downloadBililiveRecorder();
   await downloadAudioWaveform();
   await downloadDanmakuFactory();
+  removeUnusedBinFiles();
 }
 
 downloadBin();

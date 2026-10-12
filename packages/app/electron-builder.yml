@@ -11,6 +11,19 @@ files:
   - "!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}"
   - "!{.env,.env.*,.npmrc,pnpm-lock.yaml}"
   - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}"
+  # 原生模块里运行时用不到的部分，与 packages/CLI/scripts/copy_module.js 的剪裁规则保持一致：
+  # better-sqlite3 的 sqlite3 合并源码 / C++ 源码、font-ls 的 MSVC 中间产物、
+  # meyda 的浏览器入口、shazamio-core 的 wasm 浏览器版。
+  - "!**/better-sqlite3/{deps,src}/**"
+  - "!**/better-sqlite3/binding.gyp"
+  - "!**/font-ls/{src,test,.github}/**"
+  - "!**/font-ls/.node-version"
+  - "!**/font-ls/build/{binding.sln,config.gypi}"
+  - "!**/font-ls/build/*.vcxproj*"
+  - "!**/font-ls/build/Release/obj/**"
+  - "!**/font-ls/build/Release/*.{pdb,iobj,ipdb,lib,exp}"
+  - "!**/meyda/{src,bin,dist/web,dist/esm}/**"
+  - "!**/shazamio-core/web/**"
 asarUnpack:
   - resources/**
 win:

@@ -123,6 +123,144 @@ function main() {
   safeCpSync("shazamio-core");
   safeCpSync("file-uri-to-path");
   safeCpSync("bindings");
+
+  pruneUnusedFiles();
+  warnMissingNtSuspendBinary();
+}
+
+// ---------------------------------------------------------------- 打包剪裁
+
+/**
+ * `lib/node_modules` 会被整目录打进安装包（Tauri 侧压进 payload.7z，Electron 侧进 asar），
+ * 而 pnpm store 里是完整的 npm 包——包含只在编译期用得到的源码、MSVC 中间产物、
+ * 给浏览器/TypeScript 用的产物。这里按包删掉运行时不需要的部分。
+ *
+ * 规则里不带 `*` 的项：删掉该相对路径（目录递归删）；带 `*` 的只匹配同层文件名。
+ * 实测可省约 25MB（79MB -> 54MB）。
+ */
+const PRUNE_RULES = {
+  "better-sqlite3": [
+    // sqlite3.c / sqlite3.h 合并源码（9.5MB），只在编译 build/Release/better_sqlite3.node 时用
+    "deps",
+    // C++ 源码，同样只在编译时用
+    "src",
+    "binding.gyp",
+    "README.md",
+    "build/Release/.forge-meta",
+  ],
+  "font-ls": [
+    "src",
+    "test",
+    ".github",
+    ".node-version",
+    "CHANGELOG.md",
+    "binding.gyp",
+    "build/binding.sln",
+    "build/config.gypi",
+    "build/*.vcxproj",
+    "build/*.vcxproj.filters",
+    // 运行时只需要 build/Release/fontmanager.node，其余全是 MSVC 产物
+    "build/Release/obj",
+    "build/Release/*.pdb",
+    "build/Release/*.iobj",
+    "build/Release/*.ipdb",
+    "build/Release/*.lib",
+    "build/Release/*.exp",
+  ],
+  meyda: [
+    "src",
+    "bin",
+    "tsconfig.json",
+    "rollup.config.mjs",
+    "README.md",
+    // main 指向 dist/node/main.js；web 是浏览器入口，esm 只给 types 字段用
+    "dist/web",
+    "dist/esm",
+  ],
+  // main 指向 node/；web/ 是浏览器用的 wasm 版
+  "shazamio-core": ["web"],
+  "file-uri-to-path": ["test", "History.md"],
+};
+
+/** 规则匹配：`a/b` 及其子路径，或 `a/*.ext` 这种同层通配 */
+function matchRule(relativePath, rule) {
+  const target = relativePath.replaceAll("\\", "/");
+  const starIndex = rule.indexOf("*");
+  if (starIndex < 0) {
+    return target === rule || target.startsWith(`${rule}/`);
+  }
+  const dir = rule.slice(0, rule.lastIndexOf("/", starIndex) + 1);
+  if (!target.startsWith(dir)) {
+    return false;
+  }
+  const file = target.slice(dir.length);
+  if (file.includes("/")) {
+    return false;
+  }
+  const [prefix, suffix] = rule.slice(dir.length).split("*");
+  return file.startsWith(prefix) && file.endsWith(suffix);
+}
+
+function pathSize(target) {
+  const stat = fs.lstatSync(target, { throwIfNoEntry: false });
+  if (!stat || stat.isSymbolicLink()) {
+    return 0;
+  }
+  if (stat.isFile()) {
+    return stat.size;
+  }
+  if (!stat.isDirectory()) {
+    return 0;
+  }
+  return fs.readdirSync(target).reduce((sum, name) => sum + pathSize(path.join(target, name)), 0);
+}
+
+function prunePackage(packageDir, rules) {
+  let saved = 0;
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (rules.some((rule) => matchRule(path.relative(packageDir, full), rule))) {
+        saved += pathSize(full);
+        fs.rmSync(full, { recursive: true, force: true });
+        continue;
+      }
+      if (entry.isDirectory()) {
+        walk(full);
+      }
+    }
+  };
+  walk(packageDir);
+  return saved;
+}
+
+function pruneUnusedFiles() {
+  let saved = 0;
+  for (const [packageName, rules] of Object.entries(PRUNE_RULES)) {
+    const packageDir = path.join(cli_node_modules, packageName);
+    if (fs.existsSync(packageDir)) {
+      saved += prunePackage(packageDir, rules);
+    }
+  }
+  console.log(`剪裁运行时用不到的文件：${(saved / 1024 / 1024).toFixed(1)}MB`);
+}
+
+/**
+ * ntsuspend 的原生模块不在 npm 包里，靠它自己的 postinstall 从 GitHub Releases 下载，
+ * 而本仓库用 pnpm，安装脚本不一定会执行。缺少时 packaged 版「暂停/继续任务」会直接抛错，
+ * 这里提前提醒（真正的修复在仓库根目录 scripts/ensure-ntsuspend.js）。
+ */
+function warnMissingNtSuspendBinary() {
+  if (process.platform !== "win32") {
+    return;
+  }
+  const binary = path.join(cli_node_modules, "ntsuspend", `win32-${process.arch}_lib.node`);
+  if (!fs.existsSync(binary)) {
+    console.warn(
+      `警告：缺少 ${binary}\n` +
+        `      打包版将无法暂停/继续任务，请先运行 \`pnpm run ensure:ntsuspend\``,
+    );
+  }
 }
 
 main();
