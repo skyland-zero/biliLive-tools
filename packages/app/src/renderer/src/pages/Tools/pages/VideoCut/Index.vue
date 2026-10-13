@@ -277,7 +277,7 @@ const {
   loadVideo: loadVideoCore,
   togglePlay,
   handleVideoReady,
-} = useVideoPlayer(isWeb);
+} = useVideoPlayer();
 const { duration: videoDuration } = storeToRefs(useSegmentStore());
 const {
   danmaList,

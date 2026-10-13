@@ -161,9 +161,10 @@ import ffmpegSetting from "./components/ffmpegSetting.vue";
 import PreviewModal from "./components/previewModal.vue";
 import { useConfirm, useBili } from "@renderer/hooks";
 import { useDanmuPreset, useUserInfoStore, useAppConfig } from "@renderer/stores";
-import { danmuPresetApi, taskApi, commonApi } from "@renderer/apis";
+import { danmuPresetApi, taskApi } from "@renderer/apis";
 import hotkeys from "hotkeys-js";
 import { deepRaw, uuid } from "@renderer/utils";
+import { resolveVideoSource } from "@renderer/utils/media";
 import { cloneDeep } from "lodash-es";
 import { showSaveDialog } from "@renderer/utils/fileSystem";
 import ButtonGroup from "@renderer/components/ButtonGroup.vue";
@@ -198,7 +199,6 @@ const { userInfo } = storeToRefs(useUserInfoStore());
 const { appConfig } = storeToRefs(useAppConfig());
 
 const { handlePresetOptions, presetOptions } = useBili();
-const isWeb = computed(() => window.isWeb);
 
 const fileList = ref<
   (File & {
@@ -396,17 +396,9 @@ const preview = async () => {
   const data = await preHandle(files, rawClientOptions, rawDanmuConfig);
   if (!data) return;
 
-  if (isWeb.value) {
-    const { videoId, type } = await commonApi.applyVideoId(data.inputVideoFile.path);
-    const videoUrl = await commonApi.getVideo(videoId);
-    previewFiles.value.video = videoUrl;
-    previewFiles.value.type = type;
-  } else {
-    previewFiles.value.video = data.inputVideoFile.path;
-    if (data.inputVideoFile.path.endsWith(".flv")) {
-      previewFiles.value.type = "flv";
-    }
-  }
+  const { url, type } = await resolveVideoSource(data.inputVideoFile.path);
+  previewFiles.value.video = url;
+  previewFiles.value.type = type;
 
   previewModalVisible.value = true;
 

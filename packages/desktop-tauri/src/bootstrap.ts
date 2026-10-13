@@ -20,6 +20,9 @@ if (import.meta.env.DEV) {
 // @ts-ignore
 window.path = path;
 
+// 注意：window.isTauri 由 Tauri 初始化脚本注入（只读属性，不可再次赋值），
+// 渲染层直接读它来判断是否需要让 sidecar 提供视频流（见 utils/media.ts）
+
 showStartupPlaceholder();
 
 import("@renderer/main");

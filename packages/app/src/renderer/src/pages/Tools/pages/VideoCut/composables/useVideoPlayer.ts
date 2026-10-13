@@ -1,8 +1,8 @@
-import { ref, type Ref } from "vue";
-import { commonApi } from "@renderer/apis";
+import { ref } from "vue";
+import { resolveVideoSource } from "@renderer/utils/media";
 import type Artplayer from "artplayer";
 
-export function useVideoPlayer(isWeb: Ref<boolean>) {
+export function useVideoPlayer() {
   const videoInstance = ref<Artplayer | null>(null);
   const videoRef = ref<any>(null);
 
@@ -11,15 +11,9 @@ export function useVideoPlayer(isWeb: Ref<boolean>) {
    * @param path 视频文件路径
    */
   const loadVideo = async (path: string) => {
-    if (isWeb.value) {
-      const { videoId, type } = await commonApi.applyVideoId(path);
-      const videoUrl = await commonApi.getVideo(videoId);
-      await videoRef.value?.switchUrl(videoUrl, type as any);
-      return videoUrl;
-    } else {
-      await videoRef.value?.switchUrl(path, path.endsWith(".flv") ? "flv" : "");
-      return path;
-    }
+    const { url, type } = await resolveVideoSource(path);
+    await videoRef.value?.switchUrl(url, type as any);
+    return url;
   };
 
   /**
