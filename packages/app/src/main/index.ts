@@ -1,3 +1,5 @@
+// 必须放在最前面：dev 的 userData 隔离要在抢单实例锁、读配置之前生效
+import "./devUserData";
 import { join } from "node:path";
 import semver from "semver";
 import Store from "electron-store";

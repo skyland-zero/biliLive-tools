@@ -6,7 +6,11 @@ import fs from "fs-extra";
 export const __dirname2 = dirname(fileURLToPath(import.meta.url));
 
 export const getConfigPath = async () => {
-  const binPath = join(process.resourcesPath || "", "app.asar.unpacked", "resources", "bin");
+  // 打包版的外部工具在 app.asar.unpacked 里；dev 直接读仓库的 packages/app/resources/bin，
+  // 否则 process.resourcesPath 指向 electron 自身的 dist，路径并不存在
+  const binPath = app.isPackaged
+    ? join(process.resourcesPath || "", "app.asar.unpacked", "resources", "bin")
+    : join(app.getAppPath(), "resources", "bin");
 
   let userDataPath = app.getPath("userData");
   let APP_CONFIG_PATH = join(userDataPath, "appConfig.json");
