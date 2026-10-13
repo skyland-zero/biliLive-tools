@@ -1,8 +1,8 @@
 // 必须放在最前面：dev 的 userData 隔离要在抢单实例锁、读配置之前生效
 import "./devUserData";
 import { join } from "node:path";
+import { readFileSync, rmSync } from "node:fs";
 import semver from "semver";
-import Store from "electron-store";
 import contextMenu from "electron-context-menu";
 import {
   app,
@@ -70,31 +70,64 @@ if (process.argv.includes("--disable-gpu")) {
   app.disableHardwareAcceleration();
 }
 
-const WindowState = new Store<{
-  winBounds: {
-    width: number;
-    height: number;
-    x: number;
-    y: number;
-    isMaximized: boolean;
-  };
-}>({
-  name: "window-state",
-});
+/**
+ * 主窗口的位置 / 尺寸 / 最大化状态交给 Electron 原生的 windowStatePersistence 管理。
+ *
+ * 原生实现会把状态连同当时的显示器工作区一起写进 `userData/Local State` 的
+ * `windowStates.<name>`，恢复时按当前显示器布局自动修正——比之前手写的「x/y 为负就
+ * 丢弃」靠谱得多（副屏拔掉后旧坐标落在屏幕外，旧判断是识别不出来的）。
+ *
+ * 两个必须留意的行为：
+ *  - 最大化状态在窗口 show() 时才应用，不是构造时——所以下面不要去读刚建好的窗口的
+ *    isMaximized()，那时候必然是 false。
+ *  - 落盘是**异步**的（实测约 200ms），改完窗口状态立刻 app.exit(0) 会丢掉这次变更。
+ *    relaunch() 里因此有一处显式等待。
+ */
+const MAIN_WINDOW_NAME = "main";
+const DEFAULT_WINDOW_SIZE = { width: 900, height: 750 };
 
-const windowConfig: {
-  width: number;
-  height: number;
-  isMaximized: boolean;
-  x: number | undefined;
-  y: number | undefined;
-} = {
-  width: 900,
-  height: 750,
-  isMaximized: false,
-  x: undefined,
-  y: undefined,
-};
+/**
+ * <= 3.22 的窗口状态存在 `userData/window-state.json`（就是 electron-store 的普通
+ * JSON 文件）。改用原生持久化后没人再读它，这里只在升级后的首次启动把老数据当作构造
+ * 参数默认值带过去，避免老用户的窗口尺寸 / 位置被重置回 900x750；带完即删。
+ *
+ * 用 fs 直读而不是引回 electron-store：后者一构造就会把文件建出来，全新安装会凭空
+ * 多出一个空的 window-state.json。
+ *
+ * 原生持久化一旦有记录就会覆盖这些构造参数，所以即便这段迁移逻辑将来出问题，
+ * 也只影响升级后的第一次启动。
+ */
+function takeLegacyWindowState() {
+  const legacyPath = join(app.getPath("userData"), "window-state.json");
+
+  let legacy: {
+    width?: number;
+    height?: number;
+    x?: number;
+    y?: number;
+    isMaximized?: boolean;
+  };
+  try {
+    legacy = JSON.parse(readFileSync(legacyPath, "utf-8"))?.winBounds;
+  } catch {
+    // 文件不存在，或者不是预期里的 JSON（比如被手动改坏了）
+    return undefined;
+  }
+
+  rmSync(legacyPath, { force: true });
+  if (!legacy?.width || !legacy?.height) return undefined;
+  return legacy;
+}
+
+/** 把旧状态转成 BrowserWindow 构造参数；坐标明显无效时退回默认位置 */
+function legacyBoundsToOptions(legacy: NonNullable<ReturnType<typeof takeLegacyWindowState>>) {
+  const valid = (v: number | undefined): v is number => typeof v === "number" && v >= 0;
+  return {
+    width: legacy.width as number,
+    height: legacy.height as number,
+    ...(valid(legacy.x) && valid(legacy.y) ? { x: legacy.x, y: legacy.y } : {}),
+  };
+}
 
 const registerHandlers = (
   ipcMain: IpcMain,
@@ -178,19 +211,14 @@ function createSubWindow(options: {
 }
 
 function createWindow(): void {
-  Object.assign(windowConfig, WindowState.get("winBounds"));
-  // 如果x，y存在一个参数为负值，则重置为undefined
-  if (
-    (windowConfig.x !== undefined && windowConfig.x < 0) ||
-    (windowConfig.y !== undefined && windowConfig.y < 0)
-  ) {
-    windowConfig.x = undefined;
-    windowConfig.y = undefined;
-  }
+  const legacyWindowState = takeLegacyWindowState();
 
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    ...windowConfig,
+    name: MAIN_WINDOW_NAME,
+    windowStatePersistence: true,
+    ...DEFAULT_WINDOW_SIZE,
+    ...(legacyWindowState ? legacyBoundsToOptions(legacyWindowState) : {}),
     show: false,
     autoHideMenuBar: false,
     minHeight: 400,
@@ -203,19 +231,11 @@ function createWindow(): void {
       // nodeIntegrationInWorker: true,
     },
   });
-  if (windowConfig.isMaximized) {
+  // 旧数据里的最大化状态没法通过构造参数传，只能建完再补（实测隐藏窗口上调 maximize()
+  // 同样会被原生持久化记下来），这样老用户升级后第一次启动也能保持原样。
+  if (legacyWindowState?.isMaximized) {
     mainWindow.maximize();
   }
-  mainWindow.on("close", () => {
-    Object.assign(
-      windowConfig,
-      {
-        isMaximized: mainWindow.isMaximized(),
-      },
-      mainWindow.getNormalBounds(),
-    );
-    WindowState.set("winBounds", windowConfig); // saves window's properties using electron-store
-  });
 
   mainWindow.on("ready-to-show", () => {
     if (is.dev) {
@@ -587,16 +607,6 @@ const canQuit = async () => {
 // 退出应用时检测任务
 const quit = async () => {
   try {
-    Object.assign(
-      windowConfig,
-      {
-        isMaximized: mainWin.isMaximized(),
-      },
-      mainWin.getNormalBounds(),
-    );
-
-    WindowState.set("winBounds", windowConfig); // saves window's properties using electron-store
-
     const canQuited = await canQuit();
     if (canQuited) {
       mainWin.destroy();
@@ -611,19 +621,21 @@ const quit = async () => {
 
 export const relaunch = async () => {
   const canQuited = await canQuit();
-  if (canQuited) {
-    Object.assign(
-      windowConfig,
-      {
-        isMaximized: false,
-      },
-      mainWin.getNormalBounds(),
-    );
+  if (!canQuited) return;
 
-    WindowState.set("winBounds", windowConfig); // saves window's properties using electron-store
-    app.relaunch();
-    app.exit(0);
+  // 沿用旧行为：重启后不带着最大化状态回来。
+  //
+  // 原生持久化是异步落盘的（实测需要 ~200ms），unmaximize() 之后直接 app.exit(0)
+  // 会把这次变更丢掉，所以这里必须显式等一下；顺手把窗口藏起来，免得用户看到窗口
+  // 先缩小再重启。窗口已销毁时（比如另一条退出路径先走完）直接跳过。
+  if (!mainWin.isDestroyed()) {
+    mainWin.unmaximize();
+    mainWin.hide();
+    await new Promise((resolve) => setTimeout(resolve, 300));
   }
+
+  app.relaunch();
+  app.exit(0);
 };
 
 export const setOpenAtLogin = (_event: IpcMainInvokeEvent, openAtLogin: boolean) => {

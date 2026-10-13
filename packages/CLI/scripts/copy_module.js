@@ -139,14 +139,23 @@ function main() {
  * 实测可省约 25MB（79MB -> 54MB）。
  */
 const PRUNE_RULES = {
+  // 注意：`prebuilds/` 是运行时真正 dlopen 的目标（N-API 产物，跨 Node/Electron 通用），
+  // 千万不要加进剪裁规则，否则 packages/CLI 一加载就成了 MODULE_NOT_FOUND。
   "better-sqlite3": [
-    // sqlite3.c / sqlite3.h 合并源码（9.5MB），只在编译 build/Release/better_sqlite3.node 时用
+    // sqlite3.c / sqlite3.h 合并源码（~9.5MB），只在 force_build=1 编译时用
     "deps",
     // C++ 源码，同样只在编译时用
     "src",
+    // v13 起有 prebuilds/ 时 binding.gyp 的 target 会降为 {type: none}，
+    // build/ 下只会残留 gyp 生成的 MSVC 工程文件，没有可用的 .node
     "binding.gyp",
-    "README.md",
+    "build/binding.sln",
+    "build/config.gypi",
+    "build/*.vcxproj",
+    "build/*.vcxproj.filters",
+    "build/Release/obj",
     "build/Release/.forge-meta",
+    "README.md",
   ],
   "font-ls": [
     "src",

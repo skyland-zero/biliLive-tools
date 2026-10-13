@@ -1,18 +1,28 @@
 /**
  * 确保 CLI 产物里的原生模块与「捆绑的 node 运行时」ABI 匹配。
  *
- * ## 为什么需要这一步
+ * ## 为什么会有这个脚本
  *
  * sidecar 执行的是 `src-tauri/binaries/node-<target-triple>`，**不是开发机上的 node**。
  * 而 `packages/CLI/scripts/copy_module.js` 是从 pnpm store 直接拷贝原生模块的，那份产物
- * 已被 `packages/app` 的 `postinstall: electron-builder install-app-deps` 重建为
- * **Electron ABI**（NODE_MODULE_VERSION 145）——任何官方 Node 都加载不了它。
+ * 历史上会被 `packages/app` 的 `postinstall: electron-builder install-app-deps`
+ * 重建为 Electron ABI，任何官方 Node 都加载不了它。
  *
  * 症状：安装后打开一直停在「正在启动…」，`sidecar.log` 里是
  * `ERR_DLOPEN_FAILED ... was compiled against a different Node.js version`。
  *
- * 因此这里按捆绑 node 的 ABI，从上游拉取对应 prebuild 覆盖。
- * N-API 模块（`@napi-rs/canvas`、`font-ls`）ABI 稳定，天然通过，无需处理。
+ * ## 现状（better-sqlite3 v13 之后）
+ *
+ * 此前的唯一修复对象 `better-sqlite3` 自 v13 起改用 N-API（`binding.gyp` 里
+ * `NAPI_VERSION=10` + `node-addon-api`），npm 包内直接附带 `prebuilds/<platform>-<arch>.node`。
+ * N-API 二进制跨 Node / Electron 版本通用，**同一个文件**即可同时服务桌面版和 sidecar，
+ * 因此不再需要从上游拉 prebuild 覆盖。（它的 `binding.gyp` 还会在检测到 prebuild 时
+ * 把 target 降为 `{type: none}`，所以 `electron-rebuild` 也是空操作，store 不会被污染。）
+ * `font-ls`、`@napi-rs/canvas` 同样是 N-API，天然兼容。
+ *
+ * 于是本脚本退化为**校验器**：把 CLI 产物里所有 `.node` 交给捆绑 node 逐个 dlopen，
+ * 任何 ABI 不匹配 / 文件缺失都会在这里报错退出。`PREBUILD_SOURCES` 保留为空扩展点，
+ * 万一将来引入非 N-API 的原生依赖，加一条配置即可恢复自动修复。
  *
  * 幂等：ABI 已匹配时直接返回，不联网。
  */
@@ -28,16 +38,13 @@ const repoRoot = path.resolve(__dirname, "../../..");
 const cliNodeModules = path.join(repoRoot, "packages/CLI/lib/node_modules");
 const binDir = path.resolve(__dirname, "../src-tauri/binaries");
 
-/** 已知可从上游拉取 prebuild 修复的模块 */
-const PREBUILD_SOURCES = {
-  "better-sqlite3": {
-    repo: "WiseLibs/better-sqlite3",
-    file: (version, abi, platform, arch) =>
-      `better-sqlite3-v${version}-node-v${abi}-${platform}-${arch}.tar.gz`,
-    /** tar 内相对包根目录的路径 */
-    target: "build/Release/better_sqlite3.node",
-  },
-};
+/** 已知可从上游拉取 prebuild 修复的模块。
+ *
+ * 目前为空——N-API 化之后没有需要这条通道的依赖了。新增条目时注意
+ * `target` 要写成 tar 内相对包根目录的路径，且 `file()` 产出的资产名要与
+ * 上游 release 实际资产一致（better-sqlite3 v13 已不再发布任何 release 资产）。
+ */
+const PREBUILD_SOURCES = {};
 
 // ---------------------------------------------------------------- 目标平台
 
@@ -59,6 +66,54 @@ function nodeBinaryPath() {
 }
 
 // ---------------------------------------------------------------- ABI 探测
+
+/**
+ * prebuild 命名里的平台 / 架构 token（prebuildify、node-pre-gyp 的通用约定）
+ *
+ * 为什么需要它：像 better-sqlite3 v13 这种包会把**所有平台**的预编译产物
+ * 一起发布（`prebuilds/` 下同时有 win32-x64 / linux-arm64 / darwin-x64 ...）。
+ * 非本机平台的 `.node` 拿去 dlopen 必然失败（Windows 上报
+ * "is not a valid Win32 application"），不过滤就会把 8 个文件里的 7 个
+ * 误报成 ABI 不匹配。
+ */
+const PLATFORM_TOKENS = ["win32", "darwin", "linux", "linuxmusl", "android", "freebsd", "openbsd"];
+const ARCH_TOKENS = [
+  "x64",
+  "arm64",
+  "ia32",
+  "arm",
+  "armv7l",
+  "ppc64",
+  "s390x",
+  "riscv64",
+  "loong64",
+];
+
+/** 本机真正可加载的 prebuild 目标。linux 上 glibc / musl 是互斥的 */
+function hostPrebuildTargets() {
+  const { platform, arch } = process;
+  if (platform === "linux") {
+    const isGlibc = Boolean(process.report?.getReport?.().header?.glibcVersionRuntime);
+    return [isGlibc ? `linux-${arch}` : `linuxmusl-${arch}`];
+  }
+  return [`${platform}-${arch}`];
+}
+
+/**
+ * 判断某个 `.node` 是否明显属于其他平台。
+ *
+ * 只有当文件名里**同时**出现平台 token 和架构 token、且组合起来不是本机目标时才
+ * 判为异平台；命名不符合约定的（比如 node-gyp 产出的
+ * `build/Release/better_sqlite3.node`）返回 false，照常交给 dlopen 判定——
+ * 宁可多探一个，也不要漏掉真正的 ABI 不匹配。
+ */
+function isForeignPrebuild(file) {
+  const tokens = path.basename(file, ".node").split("-");
+  const platform = tokens.find((token) => PLATFORM_TOKENS.includes(token));
+  const arch = tokens.find((token) => ARCH_TOKENS.includes(token));
+  if (!platform || !arch) return false;
+  return !hostPrebuildTargets().includes(`${platform}-${arch}`);
+}
 
 const readProp = (nodeBin, prop) =>
   execFileSync(nodeBin, ["-p", prop], { encoding: "utf8" }).trim();
@@ -84,10 +139,15 @@ function findNativeModules(root) {
   return fs
     .readdirSync(root, { withFileTypes: true, recursive: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(".node"))
-    .map((entry) => path.join(entry.parentPath ?? entry.path, entry.name));
+    .map((entry) => path.join(entry.parentPath ?? entry.path, entry.name))
+    .filter((file) => !isForeignPrebuild(file));
 }
 
-/** 已知需要 prebuild 的模块，其目标文件「应当存在」的清单 */
+/** 已知需要 prebuild 的模块，其目标文件「应当存在」的清单。
+ *
+ * `PREBUILD_SOURCES` 为空时返回空数组：缺失检查退化为不检查，但 dlopen 探测
+ * 仍然会暴露「文件被误删 / 平台不匹配」这类问题。
+ */
 function expectedTargets() {
   const list = [];
   for (const [pkgName, source] of Object.entries(PREBUILD_SOURCES)) {
@@ -256,7 +316,7 @@ async function main() {
 
   // 收集问题：缺失文件 + ABI 不匹配。缺失也要查，否则修坏了会被静默放过。
   const problems = [];
-  for (const { pkgName, file } of expectedTargets()) {
+  for (const { file } of expectedTargets()) {
     if (!fs.existsSync(file)) problems.push({ file, reason: "文件缺失" });
   }
 
@@ -270,13 +330,28 @@ async function main() {
     return;
   }
 
-  console.log(`[native] 发现 ${problems.length} 个问题，尝试修复：`);
+  console.log(`[native] 发现 ${problems.length} 个原生模块与捆绑 node 不兼容：`);
   for (const { file, reason } of problems) {
     console.log(`[native]   ${locatePackage(file)?.pkgName ?? file}: ${reason.slice(0, 110)}`);
   }
 
+  // 只有配了 prebuild 来源的才尝试自动修复，其余原样上报
+  const repairable = problems.filter(({ file }) => {
+    const pkgName = locatePackage(file)?.pkgName;
+    return Boolean(pkgName && PREBUILD_SOURCES[pkgName]);
+  });
+
+  if (repairable.length === 0) {
+    console.error("[native] 没有可用的自动修复来源（PREBUILD_SOURCES 为空）。");
+    console.error(
+      "[native] 现有依赖都是 N-API，本不该出现 ABI 不匹配——请检查该模块的 prebuilds/ 是否齐全、平台/架构是否匹配。",
+    );
+    process.exit(1);
+  }
+
+  console.log(`[native] 尝试自动修复 ${repairable.length} 个：`);
   const { platform, arch } = process;
-  for (const { file } of problems) {
+  for (const { file } of repairable) {
     const url = await repair(file, { abi, platform, arch });
     console.log(`[native]   ↓ 已替换 ${locatePackage(file)?.pkgName ?? file}：${url}`);
   }

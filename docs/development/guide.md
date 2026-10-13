@@ -46,18 +46,18 @@ pnpm run install:bin
 
 ### 关于 better-sqlite3
 
-如果 `better-sqlite3` 无法安装：
+自 v13 起 `better-sqlite3` 改用 N-API，npm 包里已自带各平台预编译产物（`prebuilds/`），
+**正常情况下不需要 C++ 工具链，也不需要编译**。如果安装或加载失败，按以下顺序排查：
 
-1. 安装 [Visual Studio 2022](https://visualstudio.microsoft.com/zh-hans/thank-you-downloading-visual-studio/?sku=Community) 中的 C++ 工具
-2. 安装 Python 3
-3. 如果还是无法安装，运行：
-   ```bash
-   node scripts\github-ci-better-sqlite3.js
-   ```
+1. 确认 `node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3/prebuilds/`
+   下存在对应平台的 `.node`（如 `win32-x64.node`），且没有被误删。
+2. 如果想强制从源码编译（调试用），清掉 `prebuilds/` 后
+   `node-gyp rebuild --release --force_build=1`；这需要
+   [Visual Studio 2022](https://visualstudio.microsoft.com/zh-hans/thank-you-downloading-visual-studio/?sku=Community) 的 C++ 工具 + Python 3。
+3. 仍然失败时，参考 [Issue #5638](https://github.com/pnpm/pnpm/issues/5638#issuecomment-1327988206)。
 
-详见 [Issue #5638](https://github.com/pnpm/pnpm/issues/5638#issuecomment-1327988206)
-
-如果你是Win，你还可能遇到报错比如`cause=fork/exec %1 is not a valid Win32 application.`，根据[提示](https://github.com/pnpm/pnpm/issues/5638#issuecomment-1327988206)修改pnpm源文件。
+如果你是 Win，还可能遇到 `cause=fork/exec %1 is not a valid Win32 application.`，
+根据[提示](https://github.com/pnpm/pnpm/issues/5638#issuecomment-1327988206)修改 pnpm 源文件。
 
 ### 关于二进制依赖
 

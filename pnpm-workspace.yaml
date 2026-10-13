@@ -10,7 +10,7 @@ packages:
 catalog:
   lodash-es: ^4.17.21
   axios: ^1.15.0
-  better-sqlite3: 12.11.1
+  better-sqlite3: 13.0.3
   font-ls: 0.6.6
   ntsuspend: ^1.0.2
   mitt: ^3.0.1
@@ -21,12 +21,22 @@ patchedDependencies:
 
 overrides:
   typescript: npm:typescript-native-bridge@6.0.3-bridge.15.tsgo.7.0.2
-  "node-abi": "3.92.0"
+  # better-sqlite3 v13 起改用 N-API，跨 Node/Electron ABI 通用，
+  # 因此这条 override 现在只服务于 leaves：font-ls 的 install 脚本
+  # （prebuild-install || node-gyp rebuild）和 @yao-pkg/pkg。
+  # 3.98.0 是 3.x 线最新版，已收录 Electron 44（ABI 149）/ 45（ABI 150）；
+  # 不要升 4.x——它是纯 ESM，prebuild-install@7.x 是 CJS，会 require 失败。
+  "node-abi": "3.98.0"
   "webworkify-webpack": "https://github.com/xqq/webworkify-webpack.git#24d1e719b4a6cac37a518b2bb10fe124527ef4ef"
 
 blockExoticSubdeps: false
 
 allowBuilds:
+  # better-sqlite3 v13 的 package.json 里已经没有任何 install/postinstall 脚本，
+  # 但它仍然随包发布 binding.gyp，pnpm 据此判定为 requiresBuild，不列入白名单就会报
+  # ERR_PNPM_IGNORED_BUILDS（退出码 1，会让 CI 直接挂）。
+  # 这里列入只是为了消掉误报：实际执行时 node-gyp 会因为检测到 prebuilds/ 已存在
+  # 而把 target 降为 {type: none}，不会真的编译。
   better-sqlite3: true
   bufferutil: true
   electron: true
@@ -47,7 +57,7 @@ minimumReleaseAgeExclude:
   - dmg-builder
   - electron-builder-squirrel-windows
   - electron-builder
-  - electron@42.5.0
+  - electron@44.7.0
   - "@renmu/node-shazam@2.0.4"
   - "@renmu/bili-api@2.15.2"
   - "@napi-rs/canvas-android-arm64@1.0.9"
