@@ -229,7 +229,7 @@ export async function detectSingingSegments(
     try {
       progress?.({ stage: "singing-llm", percentage: 0, message: "复核唱歌片段" });
       const reviews = await options.review(
-        merged.map((candidate, index) => ({
+        merged.map((candidate) => ({
           start: candidate.start,
           end: candidate.end,
           text: collectText(options.asrResult, candidate.start, candidate.end),
