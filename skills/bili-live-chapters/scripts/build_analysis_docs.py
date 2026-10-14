@@ -49,6 +49,15 @@ def load_songs(scan, tmap, min_span=30):
     return out, len(rows), sum(1 for r in rows if r.get('title'))
 
 
+
+def _copy(src, dst):
+    """复制，源和目标是同一个文件时跳过（ASR 输出目录直接当 --outdir 时会撞上）。"""
+    if os.path.abspath(src) == os.path.abspath(dst):
+        return
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.copy(src, dst)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--video', required=True)
@@ -85,11 +94,11 @@ def main():
         if os.path.exists(os.path.join(a.asr_dir, 'asr_1min.txt')) else None
     dg = os.path.join(a.asr_dir, 'digest.txt')
     if os.path.exists(dg):
-        shutil.copy(dg, os.path.join(a.outdir, '02-内容摘要.txt'))
-    shutil.copy(os.path.join(a.asr_dir, 'asr.txt'), os.path.join(a.outdir, '03-语音转写.txt'))
+        _copy(dg, os.path.join(a.outdir, '02-内容摘要.txt'))
+    _copy(os.path.join(a.asr_dir, 'asr.txt'), os.path.join(a.outdir, '03-语音转写.txt'))
     for f in ('asr.jsonl', 'asr.txt'):
-        shutil.copy(os.path.join(a.asr_dir, f), os.path.join(a.outdir, '原始数据', f))
-    shutil.copy(a.scan, os.path.join(a.outdir, '原始数据', 'shazam.jsonl'))
+        _copy(os.path.join(a.asr_dir, f), os.path.join(a.outdir, '原始数据', f))
+    _copy(a.scan, os.path.join(a.outdir, '原始数据', 'shazam.jsonl'))
 
     # 00 分析报告
     rep = [f"直播分析报告",
